@@ -50,7 +50,9 @@ type Artifact struct {
 }
 
 // Paths returns each Artifact's Path, in order — convenience glue for feeding
-// checksum.WriteSums or pack.
+// checksum.WriteSums or any other API that wants a flat file-path list. pack.Zip
+// wants []Content (name + source path), not a bare []string, so it doesn't
+// consume Paths directly.
 func Paths(arts []Artifact) []string {
 	out := make([]string, len(arts))
 	for i, a := range arts {

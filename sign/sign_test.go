@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -23,6 +24,35 @@ func TestAppleSignerCommand(t *testing.T) {
 	got = bin + " " + strings.Join(args, " ")
 	if got != "signtool sign /tmp/b" {
 		t.Errorf("wrapper: got=%q", got)
+	}
+}
+
+func writeStub(t *testing.T, exit int) string {
+	t.Helper()
+	dir := t.TempDir()
+	p := filepath.Join(dir, "signer-stub")
+	body := "#!/bin/sh\necho \"stub sign output\"\nexit " + strconv.Itoa(exit) + "\n"
+	if err := os.WriteFile(p, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+func TestAppleSignerSignSuccess(t *testing.T) {
+	s := AppleSigner{ToolPath: writeStub(t, 0)}
+	if err := s.Sign(context.Background(), "/tmp/b"); err != nil {
+		t.Fatalf("Sign: %v", err)
+	}
+}
+
+func TestAppleSignerSignError(t *testing.T) {
+	s := AppleSigner{ToolPath: writeStub(t, 1)}
+	err := s.Sign(context.Background(), "/tmp/b")
+	if err == nil {
+		t.Fatal("Sign: want error on non-zero exit, got nil")
+	}
+	if !strings.Contains(err.Error(), "apple sign:") {
+		t.Errorf("Sign error = %q, want wrapped with %q", err.Error(), "apple sign:")
 	}
 }
 

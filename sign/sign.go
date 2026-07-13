@@ -28,11 +28,10 @@ func (AdHocSigner) Sign(ctx context.Context, binaryPath string) error {
 // AppleSigner applies a real Developer ID signature. With ToolPath empty it
 // drives `codesign` directly using Identity; with ToolPath set it delegates to a
 // wrapper invoked as `<ToolPath> sign <path>` (e.g. a product's signing helper).
-// NotaryProfile is informational here — zip notarization is the caller's job.
+// Notarization is not this library's job — see the GUIDE.
 type AppleSigner struct {
-	Identity      string
-	ToolPath      string
-	NotaryProfile string
+	Identity string
+	ToolPath string
 }
 
 func (a AppleSigner) command(binaryPath string) (string, []string) {

@@ -18,9 +18,9 @@ func TestAppleSignerCommand(t *testing.T) {
 		t.Errorf("plain:\n got=%q\nwant=%q", got, want)
 	}
 	// wrapper mode
-	bin, args = AppleSigner{Identity: "ignored", ToolPath: "modernech-sign"}.command("/tmp/b")
+	bin, args = AppleSigner{Identity: "ignored", ToolPath: "signtool"}.command("/tmp/b")
 	got = bin + " " + strings.Join(args, " ")
-	if got != "modernech-sign sign /tmp/b" {
+	if got != "signtool sign /tmp/b" {
 		t.Errorf("wrapper: got=%q", got)
 	}
 }

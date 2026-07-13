@@ -5,6 +5,7 @@
 package vulncheck
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -28,13 +29,13 @@ type GateOpts struct {
 // Gate scans every module with `GOWORK=off govulncheck ./...`, writes each
 // module's output to ReportDir/<Name>.txt, and returns a non-nil error if ANY
 // module has a finding or the scan itself errors (fail-closed). nil = all clean.
-func Gate(modules []Module, opts GateOpts) error {
+func Gate(ctx context.Context, modules []Module, opts GateOpts) error {
 	if len(modules) == 0 {
 		return fmt.Errorf("vulncheck: no modules to scan")
 	}
 	gv := opts.GovulncheckPath
 	if gv == "" {
-		gv = resolveGovulncheck(opts.GoBin)
+		gv = resolveGovulncheck(ctx, opts.GoBin)
 	}
 	if gv == "" {
 		return fmt.Errorf("govulncheck not found (install: go install golang.org/x/vuln/cmd/govulncheck@latest)")
@@ -44,7 +45,7 @@ func Gate(modules []Module, opts GateOpts) error {
 	}
 	var failed []string
 	for _, m := range modules {
-		cmd := exec.Command(gv, "./...")
+		cmd := exec.CommandContext(ctx, gv, "./...")
 		cmd.Dir = m.Dir
 		cmd.Env = append(os.Environ(), "GOWORK=off")
 		out, err := cmd.CombinedOutput()
@@ -59,14 +60,14 @@ func Gate(modules []Module, opts GateOpts) error {
 	return nil
 }
 
-func resolveGovulncheck(goBin string) string {
+func resolveGovulncheck(ctx context.Context, goBin string) string {
 	if p, err := exec.LookPath("govulncheck"); err == nil {
 		return p
 	}
 	if goBin == "" {
 		goBin = "go"
 	}
-	out, err := exec.Command(goBin, "env", "GOPATH").Output()
+	out, err := exec.CommandContext(ctx, goBin, "env", "GOPATH").Output()
 	if err != nil {
 		return ""
 	}

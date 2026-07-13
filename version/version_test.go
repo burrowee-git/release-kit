@@ -1,6 +1,7 @@
 package version
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -52,7 +53,7 @@ func TestStamp(t *testing.T) {
 	semFile := filepath.Join(dir, "ver")
 	os.WriteFile(semFile, []byte("0.1.0\n"), 0o644)
 
-	got, err := Stamp(semFile, dir, DateVersionScheme)
+	got, err := Stamp(context.Background(), semFile, dir, DateVersionScheme)
 	if err != nil {
 		t.Fatal(err)
 	}

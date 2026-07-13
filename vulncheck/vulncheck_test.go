@@ -1,6 +1,7 @@
 package vulncheck
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -28,11 +29,11 @@ func TestGateCleanAndFinding(t *testing.T) {
 	mods := []Module{{Name: "cli", Dir: mdir}}
 
 	// clean (exit 0) → nil
-	if err := Gate(mods, GateOpts{GovulncheckPath: writeStub(t, t.TempDir(), 0), ReportDir: reports}); err != nil {
+	if err := Gate(context.Background(), mods, GateOpts{GovulncheckPath: writeStub(t, t.TempDir(), 0), ReportDir: reports}); err != nil {
 		t.Fatalf("clean gate returned error: %v", err)
 	}
 	// finding (exit 3) → error + report written
-	err := Gate(mods, GateOpts{GovulncheckPath: writeStub(t, t.TempDir(), 3), ReportDir: reports})
+	err := Gate(context.Background(), mods, GateOpts{GovulncheckPath: writeStub(t, t.TempDir(), 3), ReportDir: reports})
 	if err == nil {
 		t.Fatal("finding gate returned nil (should fail closed)")
 	}
@@ -43,7 +44,7 @@ func TestGateCleanAndFinding(t *testing.T) {
 
 func TestGateEmptyModulesFailsClosed(t *testing.T) {
 	reports := t.TempDir()
-	err := Gate(nil, GateOpts{GovulncheckPath: writeStub(t, t.TempDir(), 0), ReportDir: reports})
+	err := Gate(context.Background(), nil, GateOpts{GovulncheckPath: writeStub(t, t.TempDir(), 0), ReportDir: reports})
 	if err == nil {
 		t.Fatal("empty modules gate returned nil (should fail closed)")
 	}

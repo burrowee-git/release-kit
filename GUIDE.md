@@ -23,7 +23,7 @@ age-sealed in your `.dp` secrets repo — never commit it).
 Call the primitives in order. The CVE gate is MANDATORY on public cuts:
 
 1. parse flags / prompt (`--public-release` = sign + gate; `--vulncheck`; `--apple`);
-2. `vulncheck.Gate(modules, opts)` — **first, on every public cut** (fail-closed);
+2. `vulncheck.Gate(ctx, modules, opts)` — **first, on every public cut** (fail-closed);
 3. `version.Stamp` → `build.Compile` → `checksum.SumFile` → `minisign.Sign` → `pack.Zip`;
 4. your distribution (GitHub Release, R2, host upload, catalogs, bootstraps).
 

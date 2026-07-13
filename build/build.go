@@ -4,6 +4,7 @@
 package build
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -44,7 +45,7 @@ type Artifact struct {
 // is non-nil (macOS refuses to exec an unsigned native binary). When the build
 // host is not darwin, darwin outputs are left unsigned, since codesign is
 // macOS-only.
-func Compile(spec Spec) ([]Artifact, error) {
+func Compile(ctx context.Context, spec Spec) ([]Artifact, error) {
 	goBin := spec.GoBin
 	if goBin == "" {
 		goBin = "go"
@@ -62,7 +63,7 @@ func Compile(spec Spec) ([]Artifact, error) {
 			if b.SubDir != "" {
 				buildDir = filepath.Join(spec.SrcDir, b.SubDir)
 			}
-			cmd := exec.Command(goBin, "build", "-trimpath", "-ldflags", b.Ldflags, "-o", outPath, b.Package)
+			cmd := exec.CommandContext(ctx, goBin, "build", "-trimpath", "-ldflags", b.Ldflags, "-o", outPath, b.Package)
 			cmd.Dir = buildDir
 			cmd.Env = append(os.Environ(),
 				"CGO_ENABLED=0", "GOOS="+tgt.OS, "GOARCH="+tgt.Arch, "GOWORK="+b.GoWork)
@@ -70,7 +71,7 @@ func Compile(spec Spec) ([]Artifact, error) {
 				return nil, fmt.Errorf("build %s (%s/%s): %w\n%s", b.Name, tgt.OS, tgt.Arch, err, out)
 			}
 			if tgt.OS == "darwin" && host == "darwin" && spec.Signer != nil {
-				if err := spec.Signer.Sign(outPath); err != nil {
+				if err := spec.Signer.Sign(ctx, outPath); err != nil {
 					return nil, fmt.Errorf("sign %s: %w", outPath, err)
 				}
 			}

@@ -1,6 +1,7 @@
 package sign
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -39,7 +40,7 @@ func TestAdHocSignerRunsOnDarwin(t *testing.T) {
 	if out, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build: %v\n%s", err, out)
 	}
-	if err := (AdHocSigner{}).Sign(binp); err != nil {
+	if err := (AdHocSigner{}).Sign(context.Background(), binp); err != nil {
 		t.Fatalf("Sign: %v", err)
 	}
 	if out, err := exec.Command("codesign", "-v", binp).CombinedOutput(); err != nil {

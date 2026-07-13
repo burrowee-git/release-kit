@@ -1,6 +1,7 @@
 package minisign
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -22,20 +23,20 @@ func TestSignVerifyRoundtrip(t *testing.T) {
 	if err := os.WriteFile(sums, []byte("deadbeef  x\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := Sign(sums, sec); err != nil {
+	if err := Sign(context.Background(), sums, sec); err != nil {
 		t.Fatalf("Sign: %v", err)
 	}
 	if _, err := os.Stat(sums + ".minisig"); err != nil {
 		t.Fatalf("no .minisig written: %v", err)
 	}
-	if err := Verify(sums, pub); err != nil {
+	if err := Verify(context.Background(), sums, pub); err != nil {
 		t.Fatalf("Verify: %v", err)
 	}
 	// tamper → verify must fail
 	if err := os.WriteFile(sums, []byte("tampered  x\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := Verify(sums, pub); err == nil {
+	if err := Verify(context.Background(), sums, pub); err == nil {
 		t.Fatal("Verify passed a tampered file")
 	}
 }

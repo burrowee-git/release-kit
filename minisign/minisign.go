@@ -5,14 +5,15 @@
 package minisign
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 )
 
 // Sign writes sumsFile+".minisig" by signing sumsFile with the password-less
 // minisign secret key at secretKeyPath.
-func Sign(sumsFile, secretKeyPath string) error {
-	cmd := exec.Command("minisign", "-S", "-s", secretKeyPath, "-m", sumsFile)
+func Sign(ctx context.Context, sumsFile, secretKeyPath string) error {
+	cmd := exec.CommandContext(ctx, "minisign", "-S", "-s", secretKeyPath, "-m", sumsFile)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("minisign sign: %w\n%s", err, out)
 	}
@@ -20,8 +21,8 @@ func Sign(sumsFile, secretKeyPath string) error {
 }
 
 // Verify checks sumsFile against sumsFile+".minisig" using the public key file.
-func Verify(sumsFile, pubKeyPath string) error {
-	cmd := exec.Command("minisign", "-V", "-p", pubKeyPath, "-m", sumsFile)
+func Verify(ctx context.Context, sumsFile, pubKeyPath string) error {
+	cmd := exec.CommandContext(ctx, "minisign", "-V", "-p", pubKeyPath, "-m", sumsFile)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("minisign verify: %w\n%s", err, out)
 	}

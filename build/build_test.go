@@ -1,6 +1,7 @@
 package build
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,7 +19,7 @@ func TestCompileHostBinaryWithLdflags(t *testing.T) {
 		"package main\nimport \"fmt\"\nvar version = \"dev\"\nfunc main(){ fmt.Print(version) }\n"), 0o644)
 	out := t.TempDir()
 
-	arts, err := Compile(Spec{
+	arts, err := Compile(context.Background(), Spec{
 		SrcDir: src, GoBin: "go", OutDir: out,
 		Targets: []Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}},
 		Bins:    []BinSpec{{Name: "tiny", Package: ".", Ldflags: "-X main.version=STAMP123"}},

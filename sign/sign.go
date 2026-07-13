@@ -3,21 +3,22 @@
 package sign
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 )
 
 // Signer signs a single binary in place.
 type Signer interface {
-	Sign(binaryPath string) error
+	Sign(ctx context.Context, binaryPath string) error
 }
 
 // AdHocSigner applies an ad-hoc signature (`codesign --sign -`). macOS needs any
 // signature to exec a native binary; this is the default for dev/CI builds.
 type AdHocSigner struct{}
 
-func (AdHocSigner) Sign(binaryPath string) error {
-	cmd := exec.Command("codesign", "--sign", "-", "--force", binaryPath)
+func (AdHocSigner) Sign(ctx context.Context, binaryPath string) error {
+	cmd := exec.CommandContext(ctx, "codesign", "--sign", "-", "--force", binaryPath)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("adhoc codesign: %w\n%s", err, out)
 	}
@@ -41,9 +42,9 @@ func (a AppleSigner) command(binaryPath string) (string, []string) {
 	return "codesign", []string{"--sign", a.Identity, "--force", "--options", "runtime", "--timestamp", binaryPath}
 }
 
-func (a AppleSigner) Sign(binaryPath string) error {
+func (a AppleSigner) Sign(ctx context.Context, binaryPath string) error {
 	bin, args := a.command(binaryPath)
-	if out, err := exec.Command(bin, args...).CombinedOutput(); err != nil {
+	if out, err := exec.CommandContext(ctx, bin, args...).CombinedOutput(); err != nil {
 		return fmt.Errorf("apple sign: %w\n%s", err, out)
 	}
 	return nil

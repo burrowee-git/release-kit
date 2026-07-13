@@ -4,6 +4,7 @@
 package version
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -54,8 +55,8 @@ func Bump(cur string, kind BumpKind) (string, error) {
 }
 
 // Stamp reads the semver from semverFile, the short-8 HEAD sha of srcDir, today's
-// UTC date, and applies scheme.
-func Stamp(semverFile, srcDir string, scheme Scheme) (string, error) {
+// UTC date, and applies scheme. ctx bounds the git subprocess.
+func Stamp(ctx context.Context, semverFile, srcDir string, scheme Scheme) (string, error) {
 	raw, err := os.ReadFile(semverFile)
 	if err != nil {
 		return "", err
@@ -64,7 +65,7 @@ func Stamp(semverFile, srcDir string, scheme Scheme) (string, error) {
 	if !semverRe.MatchString(semver) {
 		return "", fmt.Errorf("%s: not MAJOR.MINOR.PATCH: %q", semverFile, semver)
 	}
-	out, err := exec.Command("git", "-C", srcDir, "rev-parse", "--short=8", "HEAD").Output()
+	out, err := exec.CommandContext(ctx, "git", "-C", srcDir, "rev-parse", "--short=8", "HEAD").Output()
 	if err != nil {
 		return "", fmt.Errorf("git sha of %s: %w", srcDir, err)
 	}

@@ -1,6 +1,6 @@
 // Package vulncheck is a fail-closed CVE gate: it runs source-mode govulncheck
 // over a set of modules and returns an error if any has a reachable known
-// vulnerability. Generalized from burrowee's release-time gate; brand-agnostic —
+// vulnerability. Generalized from a release-time CVE gate; brand-agnostic —
 // the caller supplies the module list and tool paths.
 package vulncheck
 

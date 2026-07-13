@@ -1,0 +1,4 @@
+/dist/
+*.minisig
+/tmp/
+.superpowers/

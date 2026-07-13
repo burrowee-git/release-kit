@@ -40,3 +40,11 @@ func TestGateCleanAndFinding(t *testing.T) {
 		t.Fatalf("report cli.txt missing/empty: %v", e)
 	}
 }
+
+func TestGateEmptyModulesFailsClosed(t *testing.T) {
+	reports := t.TempDir()
+	err := Gate(nil, GateOpts{GovulncheckPath: writeStub(t, t.TempDir(), 0), ReportDir: reports})
+	if err == nil {
+		t.Fatal("empty modules gate returned nil (should fail closed)")
+	}
+}

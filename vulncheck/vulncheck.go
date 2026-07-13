@@ -29,6 +29,9 @@ type GateOpts struct {
 // module's output to ReportDir/<Name>.txt, and returns a non-nil error if ANY
 // module has a finding or the scan itself errors (fail-closed). nil = all clean.
 func Gate(modules []Module, opts GateOpts) error {
+	if len(modules) == 0 {
+		return fmt.Errorf("vulncheck: no modules to scan")
+	}
 	gv := opts.GovulncheckPath
 	if gv == "" {
 		gv = resolveGovulncheck(opts.GoBin)

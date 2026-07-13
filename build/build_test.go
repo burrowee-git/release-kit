@@ -19,7 +19,7 @@ func TestCompileHostBinaryWithLdflags(t *testing.T) {
 	out := t.TempDir()
 
 	arts, err := Compile(Spec{
-		SrcDir: src, GoBin: "/opt/homebrew/bin/go", OutDir: out,
+		SrcDir: src, GoBin: "go", OutDir: out,
 		Targets: []Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}},
 		Bins:    []BinSpec{{Name: "tiny", Package: ".", Ldflags: "-X main.version=STAMP123"}},
 		Signer:  sign.AdHocSigner{},

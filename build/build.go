@@ -41,7 +41,9 @@ type Artifact struct {
 
 // Compile builds every Bin for every Target into OutDir/<os>-<arch>/<Name>.
 // darwin outputs are signed with Signer when the build host is darwin and Signer
-// is non-nil (macOS refuses to exec an unsigned native binary).
+// is non-nil (macOS refuses to exec an unsigned native binary). When the build
+// host is not darwin, darwin outputs are left unsigned, since codesign is
+// macOS-only.
 func Compile(spec Spec) ([]Artifact, error) {
 	goBin := spec.GoBin
 	if goBin == "" {

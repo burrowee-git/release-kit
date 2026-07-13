@@ -34,7 +34,7 @@ func TestAdHocSignerRunsOnDarwin(t *testing.T) {
 	os.WriteFile(src, []byte("package main\nfunc main(){}\n"), 0o644)
 	os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module tiny\ngo 1.25.0\n"), 0o644)
 	binp := filepath.Join(dir, "tiny")
-	build := exec.Command("/opt/homebrew/bin/go", "build", "-o", binp, ".")
+	build := exec.Command("go", "build", "-o", binp, ".")
 	build.Dir = dir
 	if out, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build: %v\n%s", err, out)

@@ -47,8 +47,9 @@ func TestCompileHostBinaryWithLdflags(t *testing.T) {
 	if strings.TrimSpace(string(got)) != "STAMP123" {
 		t.Errorf("ldflags not applied: binary printed %q", got)
 	}
-	if !arts[0].Signed {
-		t.Errorf("Signed=false for a darwin host building a darwin target with a Signer")
+	wantSigned := runtime.GOOS == "darwin"
+	if arts[0].Signed != wantSigned {
+		t.Errorf("Signed=%v, want %v (host %s)", arts[0].Signed, wantSigned, runtime.GOOS)
 	}
 }
 

@@ -42,13 +42,13 @@ func Gate(ctx context.Context, modules []Module, opts GateOpts) error {
 		gv = resolveGovulncheck(ctx, opts.GoBin)
 	}
 	if gv == "" {
-		return fmt.Errorf("govulncheck not found (install: go install golang.org/x/vuln/cmd/govulncheck@latest)")
+		return fmt.Errorf("vulncheck: govulncheck not found (install: go install golang.org/x/vuln/cmd/govulncheck@latest)")
 	}
 	if err := checkMinVersion(ctx, gv); err != nil {
 		return err
 	}
 	if err := os.MkdirAll(opts.ReportDir, 0o755); err != nil {
-		return err
+		return fmt.Errorf("vulncheck: create report dir: %w", err)
 	}
 	var failed []string
 	for _, m := range modules {
@@ -67,7 +67,7 @@ func Gate(ctx context.Context, modules []Module, opts GateOpts) error {
 		}
 	}
 	if len(failed) > 0 {
-		return fmt.Errorf("CVE gate failed for %v (reports in %s)", failed, opts.ReportDir)
+		return fmt.Errorf("vulncheck: CVE gate failed for %v (reports in %s)", failed, opts.ReportDir)
 	}
 	return nil
 }

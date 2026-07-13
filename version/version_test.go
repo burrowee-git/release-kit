@@ -31,6 +31,20 @@ func TestBump(t *testing.T) {
 	}
 }
 
+func TestBumpOverflow(t *testing.T) {
+	// 20 digits overflows int64 (max ~9.2e18, 19 digits); the regex only
+	// guarantees digits, not magnitude.
+	if _, err := Bump("99999999999999999999.0.0", BumpPatch); err == nil {
+		t.Error("Bump accepted an overflow-length component")
+	}
+}
+
+func TestBumpInvalidKind(t *testing.T) {
+	if _, err := Bump("0.1.9", BumpKind(99)); err == nil {
+		t.Error("Bump accepted an invalid kind")
+	}
+}
+
 func TestDateVersionScheme(t *testing.T) {
 	if got := DateVersionScheme("0.1.0", "abcd1234", "2026.07.12"); got != "v0.1.0.2026.07.12.abcd1234" {
 		t.Errorf("got %q", got)

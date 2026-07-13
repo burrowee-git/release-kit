@@ -14,11 +14,14 @@ import (
 	"github.com/burrowee-git/release-kit/sign"
 )
 
+// Target is one GOOS/GOARCH pair to build for.
 type Target struct{ OS, Arch string }
 
 // BinSpec is one binary to build. SubDir (relative to SrcDir) selects a nested
-// module to build from; GoWork "off" forces module (non-workspace) mode so pinned
-// tags resolve reproducibly.
+// module to build from; GoWork "off" forces module (non-workspace) mode so
+// pinned tags resolve reproducibly. GoWork left empty defaults to "off" —
+// workspace mode is intentionally not the default, since it can silently
+// resolve a different module graph than vulncheck.Gate scanned.
 type BinSpec struct {
 	Name    string
 	Package string
@@ -27,6 +30,8 @@ type BinSpec struct {
 	GoWork  string
 }
 
+// Spec configures a Compile run: source tree, output layout, cross-compile
+// targets, binaries to build, and an optional Signer for darwin outputs.
 type Spec struct {
 	SrcDir  string
 	GoBin   string
@@ -36,8 +41,22 @@ type Spec struct {
 	Signer  sign.Signer
 }
 
+// Artifact is one built binary's location and build metadata.
 type Artifact struct {
 	Bin, OS, Arch, Path string
+	// Signed is true when Compile actually code-signed this binary (a darwin
+	// target built on a darwin host with a non-nil Signer).
+	Signed bool
+}
+
+// Paths returns each Artifact's Path, in order — convenience glue for feeding
+// checksum.WriteSums or pack.
+func Paths(arts []Artifact) []string {
+	out := make([]string, len(arts))
+	for i, a := range arts {
+		out[i] = a.Path
+	}
+	return out
 }
 
 // Compile builds every Bin for every Target into OutDir/<os>-<arch>/<Name>.
@@ -63,19 +82,25 @@ func Compile(ctx context.Context, spec Spec) ([]Artifact, error) {
 			if b.SubDir != "" {
 				buildDir = filepath.Join(spec.SrcDir, b.SubDir)
 			}
+			goWork := b.GoWork
+			if goWork == "" {
+				goWork = "off"
+			}
 			cmd := exec.CommandContext(ctx, goBin, "build", "-trimpath", "-ldflags", b.Ldflags, "-o", outPath, b.Package)
 			cmd.Dir = buildDir
 			cmd.Env = append(os.Environ(),
-				"CGO_ENABLED=0", "GOOS="+tgt.OS, "GOARCH="+tgt.Arch, "GOWORK="+b.GoWork)
+				"CGO_ENABLED=0", "GOOS="+tgt.OS, "GOARCH="+tgt.Arch, "GOWORK="+goWork)
 			if out, err := cmd.CombinedOutput(); err != nil {
 				return nil, fmt.Errorf("build %s (%s/%s): %w\n%s", b.Name, tgt.OS, tgt.Arch, err, out)
 			}
+			signed := false
 			if tgt.OS == "darwin" && host == "darwin" && spec.Signer != nil {
 				if err := spec.Signer.Sign(ctx, outPath); err != nil {
 					return nil, fmt.Errorf("sign %s: %w", outPath, err)
 				}
+				signed = true
 			}
-			arts = append(arts, Artifact{Bin: b.Name, OS: tgt.OS, Arch: tgt.Arch, Path: outPath})
+			arts = append(arts, Artifact{Bin: b.Name, OS: tgt.OS, Arch: tgt.Arch, Path: outPath, Signed: signed})
 		}
 	}
 	return arts, nil

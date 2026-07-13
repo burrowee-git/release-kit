@@ -15,7 +15,11 @@ import (
 // SumFile writes one "<hex>  <basename>\n" line per file to out, sorted by
 // basename so the output is reproducible regardless of input order.
 func SumFile(files []string, out string) error {
-	lines := make([]string, 0, len(files))
+	type entry struct {
+		name string
+		line string
+	}
+	entries := make([]entry, 0, len(files))
 	for _, f := range files {
 		fh, err := os.Open(f)
 		if err != nil {
@@ -27,8 +31,13 @@ func SumFile(files []string, out string) error {
 		if err != nil {
 			return err
 		}
-		lines = append(lines, fmt.Sprintf("%x  %s", h.Sum(nil), filepath.Base(f)))
+		name := filepath.Base(f)
+		entries = append(entries, entry{name: name, line: fmt.Sprintf("%x  %s", h.Sum(nil), name)})
 	}
-	sort.Strings(lines)
+	sort.Slice(entries, func(i, j int) bool { return entries[i].name < entries[j].name })
+	lines := make([]string, len(entries))
+	for i, e := range entries {
+		lines[i] = e.line
+	}
 	return os.WriteFile(out, []byte(strings.Join(lines, "\n")+"\n"), 0o644)
 }

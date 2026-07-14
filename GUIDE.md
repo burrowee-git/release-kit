@@ -38,14 +38,18 @@ Construct a `sign.Signer` from your config — `sign.AdHocSigner{}` for dev/CI, 
 `sign.AppleSigner{Identity: "...", ToolPath: "..."}` for a real Developer ID
 release. Nothing about the identity lives in release-kit.
 
-## 5. Minisign key
+## 5. Notarization (Apple releases)
+
+For `--apple` releases, notarize the packaged zip after signing: `sign.Notarizer{ToolPath: "..."}.Notarize(ctx, zipPath)`.
+
+## 6. Minisign key
 
 release-kit expects a **password-less** minisign secret key (standard for
 automated signing). Keep it age-sealed at rest in your product's encrypted
 secrets repo; decrypt to a chmod-600 tmpfile at cut time and pass its path to
 `minisign.Sign`.
 
-## 6. Smoke-test your kit
+## 7. Smoke-test your kit
 
 - `go test ./...` in the library (already green here).
 - A `--dry-run` cut of one component that runs the gate and produces a signed,

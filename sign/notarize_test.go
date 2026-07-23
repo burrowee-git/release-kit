@@ -2,9 +2,7 @@ package sign
 
 import (
 	"context"
-	"errors"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -37,8 +35,6 @@ func TestNotarizerSurfacesToolError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when tool missing")
 	}
-	var ee *exec.ExitError
-	_ = errors.As(err, &ee) // just assert non-nil above; type is best-effort
 }
 
 func TestNotarizeAbsolutizesPath(t *testing.T) {

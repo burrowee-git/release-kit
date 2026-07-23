@@ -5,6 +5,7 @@ package version
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -78,6 +79,10 @@ func Stamp(ctx context.Context, semverFile, srcDir string, scheme Scheme) (strin
 	}
 	out, err := exec.CommandContext(ctx, "git", "-C", srcDir, "rev-parse", "--short=8", "HEAD").Output()
 	if err != nil {
+		var ee *exec.ExitError
+		if errors.As(err, &ee) {
+			return "", fmt.Errorf("version: git sha of %s: %w\n%s", srcDir, err, ee.Stderr)
+		}
 		return "", fmt.Errorf("version: git sha of %s: %w", srcDir, err)
 	}
 	sha := strings.TrimSpace(string(out))

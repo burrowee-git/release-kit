@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 )
 
 // Signer signs a single binary in place.
@@ -18,6 +19,10 @@ type Signer interface {
 type AdHocSigner struct{}
 
 func (AdHocSigner) Sign(ctx context.Context, binaryPath string) error {
+	binaryPath, err := filepath.Abs(binaryPath)
+	if err != nil {
+		return fmt.Errorf("adhoc codesign: %w", err)
+	}
 	cmd := exec.CommandContext(ctx, "codesign", "--sign", "-", "--force", binaryPath)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("adhoc codesign: %w\n%s", err, out)
@@ -42,6 +47,10 @@ func (a AppleSigner) command(binaryPath string) (string, []string) {
 }
 
 func (a AppleSigner) Sign(ctx context.Context, binaryPath string) error {
+	binaryPath, err := filepath.Abs(binaryPath)
+	if err != nil {
+		return fmt.Errorf("apple sign: %w", err)
+	}
 	bin, args := a.command(binaryPath)
 	if out, err := exec.CommandContext(ctx, bin, args...).CombinedOutput(); err != nil {
 		return fmt.Errorf("apple sign: %w\n%s", err, out)

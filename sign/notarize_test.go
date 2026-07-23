@@ -3,7 +3,10 @@ package sign
 import (
 	"context"
 	"errors"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -36,4 +39,24 @@ func TestNotarizerSurfacesToolError(t *testing.T) {
 	}
 	var ee *exec.ExitError
 	_ = errors.As(err, &ee) // just assert non-nil above; type is best-effort
+}
+
+func TestNotarizeAbsolutizesPath(t *testing.T) {
+	argsFile := filepath.Join(t.TempDir(), "args")
+	n := Notarizer{ToolPath: writeArgsStub(t, argsFile)}
+	// A path beginning with "-" must not reach the tool as a bare flag-shaped arg.
+	if err := n.Notarize(context.Background(), "-x"); err != nil {
+		t.Fatalf("Notarize: %v", err)
+	}
+	data, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	if len(lines) != 2 { // "notarize", <path>
+		t.Fatalf("stub saw args %v, want [notarize <path>]", lines)
+	}
+	if strings.HasPrefix(lines[1], "-") || !filepath.IsAbs(lines[1]) {
+		t.Errorf("path arg %q not absolutized", lines[1])
+	}
 }

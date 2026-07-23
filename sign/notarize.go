@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 )
 
 // Notarizer submits a built, signed macOS artifact (a zip or binary) for Apple
@@ -24,6 +25,10 @@ func (n Notarizer) command(artifactPath string) (string, []string) {
 func (n Notarizer) Notarize(ctx context.Context, artifactPath string) error {
 	if n.ToolPath == "" {
 		return fmt.Errorf("notarize: ToolPath is required")
+	}
+	artifactPath, err := filepath.Abs(artifactPath)
+	if err != nil {
+		return fmt.Errorf("notarize: %w", err)
 	}
 	bin, args := n.command(artifactPath)
 	if out, err := exec.CommandContext(ctx, bin, args...).CombinedOutput(); err != nil {

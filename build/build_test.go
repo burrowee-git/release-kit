@@ -96,6 +96,45 @@ func TestCompileForeignOSNotSigned(t *testing.T) {
 	}
 }
 
+func TestCompileRelativeOutDirResolvesToOneBase(t *testing.T) {
+	src := t.TempDir()
+	if err := os.WriteFile(filepath.Join(src, "go.mod"), []byte("module tiny\ngo 1.25.0\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(src, "main.go"), []byte(
+		"package main\nfunc main(){}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// cwd distinct from SrcDir: a relative OutDir must resolve against a single
+	// base for MkdirAll, `go build -o`, and the recorded Artifact.Path alike.
+	// Without that, MkdirAll uses cwd while `go build` uses cmd.Dir=SrcDir.
+	work := t.TempDir()
+	t.Chdir(work)
+
+	arts, err := Compile(context.Background(), Spec{
+		SrcDir: src, GoBin: "go", OutDir: "dist",
+		Targets: []Target{{OS: runtime.GOOS, Arch: runtime.GOARCH}},
+		Bins:    []BinSpec{{Name: "tiny", Package: "."}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(arts) != 1 {
+		t.Fatalf("want 1 artifact, got %d", len(arts))
+	}
+	got := arts[0].Path
+	if !filepath.IsAbs(got) {
+		t.Errorf("Artifact.Path = %q, want absolute", got)
+	}
+	if _, err := os.Stat(got); err != nil {
+		t.Errorf("binary not at recorded path %q: %v", got, err)
+	}
+	want := filepath.Join(work, "dist", runtime.GOOS+"-"+runtime.GOARCH, "tiny")
+	if got != want {
+		t.Errorf("Path=%q want %q", got, want)
+	}
+}
+
 func TestPaths(t *testing.T) {
 	arts := []Artifact{{Path: "a"}, {Path: "b"}}
 	got := Paths(arts)

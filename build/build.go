@@ -71,10 +71,17 @@ func Compile(ctx context.Context, spec Spec) ([]Artifact, error) {
 	if goBin == "" {
 		goBin = "go"
 	}
+	// Resolve OutDir to one absolute base up front: MkdirAll runs in the process
+	// cwd while `go build -o` runs with cmd.Dir=buildDir, so a relative OutDir
+	// would otherwise be resolved against two different roots.
+	outBase, err := filepath.Abs(spec.OutDir)
+	if err != nil {
+		return nil, fmt.Errorf("build: resolve OutDir %q: %w", spec.OutDir, err)
+	}
 	var arts []Artifact
 	host := runtime.GOOS
 	for _, tgt := range spec.Targets {
-		outDir := filepath.Join(spec.OutDir, tgt.OS+"-"+tgt.Arch)
+		outDir := filepath.Join(outBase, tgt.OS+"-"+tgt.Arch)
 		if err := os.MkdirAll(outDir, 0o755); err != nil {
 			return nil, err
 		}

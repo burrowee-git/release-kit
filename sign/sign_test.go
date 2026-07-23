@@ -56,6 +56,38 @@ func TestAppleSignerSignError(t *testing.T) {
 	}
 }
 
+// writeArgsStub writes an executable that records the args it receives, one per
+// line, to argsFile. Shared by the sign + notarize absolutization tests.
+func writeArgsStub(t *testing.T, argsFile string) string {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), "args-stub")
+	body := "#!/bin/sh\n: > \"" + argsFile + "\"\nfor a in \"$@\"; do printf '%s\\n' \"$a\" >> \"" + argsFile + "\"; done\n"
+	if err := os.WriteFile(p, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+func TestAppleSignerAbsolutizesPath(t *testing.T) {
+	argsFile := filepath.Join(t.TempDir(), "args")
+	s := AppleSigner{ToolPath: writeArgsStub(t, argsFile)}
+	// A path beginning with "-" must not reach the tool as a bare flag-shaped arg.
+	if err := s.Sign(context.Background(), "-x"); err != nil {
+		t.Fatalf("Sign: %v", err)
+	}
+	data, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	if len(lines) != 2 { // "sign", <path>
+		t.Fatalf("stub saw args %v, want [sign <path>]", lines)
+	}
+	if strings.HasPrefix(lines[1], "-") || !filepath.IsAbs(lines[1]) {
+		t.Errorf("path arg %q not absolutized", lines[1])
+	}
+}
+
 func TestAdHocSignerRunsOnDarwin(t *testing.T) {
 	if runtime.GOOS != "darwin" {
 		t.Skip("ad-hoc codesign is darwin-only")

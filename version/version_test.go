@@ -79,3 +79,20 @@ func TestStamp(t *testing.T) {
 		t.Errorf("stamp %q sha8 suffix wrong length", got)
 	}
 }
+
+func TestStampGitErrorIncludesStderr(t *testing.T) {
+	dir := t.TempDir() // not a git repo
+	semFile := filepath.Join(dir, "ver")
+	if err := os.WriteFile(semFile, []byte("0.1.0\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Stamp(context.Background(), semFile, dir, DateVersionScheme)
+	if err == nil {
+		t.Fatal("expected error for a non-git srcDir")
+	}
+	// The bare exit-status wrap ("exit status 128") discards git's diagnostic;
+	// the surfaced error must carry git's stderr.
+	if !strings.Contains(err.Error(), "not a git repository") {
+		t.Errorf("error %q missing git stderr diagnostic", err.Error())
+	}
+}

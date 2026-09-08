@@ -9,7 +9,7 @@ import (
 
 // Notarizer submits a built, signed macOS artifact (a zip or binary) for Apple
 // notarization by delegating to a product's signing helper invoked as
-// `<ToolPath> notarize <path>` (e.g. modernech-sign). It is deliberately narrow:
+// `<ToolPath> notarize <path>` (e.g. apple-sign). It is deliberately narrow:
 // it notarizes only. Stapling is the caller's concern (bare-binary zips can't be
 // stapled — the ticket lives in Apple's online DB), and App Store / TestFlight
 // upload is NOT this library's job.

@@ -10,11 +10,11 @@ import (
 
 func TestNotarizerCommand(t *testing.T) {
 	n := Notarizer{ToolPath: "apple-sign"}
-	bin, args := n.command("/tmp/burrowee-cli-darwin-arm64.zip")
+	bin, args := n.command("/tmp/example-cli-darwin-arm64.zip")
 	if bin != "apple-sign" {
 		t.Fatalf("bin = %q, want apple-sign", bin)
 	}
-	want := []string{"notarize", "/tmp/burrowee-cli-darwin-arm64.zip"}
+	want := []string{"notarize", "/tmp/example-cli-darwin-arm64.zip"}
 	if len(args) != len(want) || args[0] != want[0] || args[1] != want[1] {
 		t.Fatalf("args = %v, want %v", args, want)
 	}

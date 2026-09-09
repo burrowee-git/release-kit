@@ -9,19 +9,20 @@ import (
 )
 
 func TestNotarizerCommand(t *testing.T) {
-	n := Notarizer{ToolPath: "modernech-sign"}
-	bin, args := n.command("/tmp/burrowee-cli-darwin-arm64.zip")
-	if bin != "modernech-sign" {
-		t.Fatalf("bin = %q, want modernech-sign", bin)
+	n := Notarizer{ToolPath: "apple-sign"}
+	bin, args := n.command("/tmp/example-cli-darwin-arm64.zip")
+	if bin != "apple-sign" {
+		t.Fatalf("bin = %q, want apple-sign", bin)
 	}
-	want := []string{"notarize", "/tmp/burrowee-cli-darwin-arm64.zip"}
+	want := []string{"notarize", "/tmp/example-cli-darwin-arm64.zip"}
 	if len(args) != len(want) || args[0] != want[0] || args[1] != want[1] {
 		t.Fatalf("args = %v, want %v", args, want)
 	}
 }
 
 func TestNotarizerRequiresToolPath(t *testing.T) {
-	// Empty ToolPath is a usage error — burrowee always sets it to modernech-sign.
+	// Empty ToolPath is a usage error: the seam has no default, because the
+	// notarization tool is the CALLER's choice — this library never picks one.
 	n := Notarizer{}
 	err := n.Notarize(context.Background(), "/tmp/x.zip")
 	if err == nil {
@@ -30,7 +31,7 @@ func TestNotarizerRequiresToolPath(t *testing.T) {
 }
 
 func TestNotarizerSurfacesToolError(t *testing.T) {
-	n := Notarizer{ToolPath: "/nonexistent/modernech-sign-xyz"}
+	n := Notarizer{ToolPath: "/nonexistent/apple-sign-xyz"}
 	err := n.Notarize(context.Background(), "/tmp/x.zip")
 	if err == nil {
 		t.Fatal("expected error when tool missing")

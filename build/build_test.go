@@ -138,3 +138,39 @@ func TestPaths(t *testing.T) {
 		t.Errorf("Paths=%v want %v", got, want)
 	}
 }
+
+func TestCompileGoWorkReachesTheBuild(t *testing.T) {
+	cases := []struct {
+		name   string
+		goWork string
+		want   string
+	}{
+		{name: "empty_defaults_to_off", goWork: "", want: "off"},
+		{name: "explicit_value_passes_through", goWork: "/src/go.work", want: "/src/go.work"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			record := filepath.Join(t.TempDir(), "gowork")
+			goBin := filepath.Join(t.TempDir(), "go-recorder")
+			body := "#!/bin/sh\nprintf '%s' \"$GOWORK\" > \"" + record + "\"\n"
+			if err := os.WriteFile(goBin, []byte(body), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			_, err := Compile(context.Background(), Spec{
+				SrcDir: t.TempDir(), GoBin: goBin, OutDir: t.TempDir(),
+				Targets: []Target{{OS: "linux", Arch: "amd64"}},
+				Bins:    []BinSpec{{Name: "tiny", Package: ".", GoWork: tc.goWork}},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := os.ReadFile(record)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(got) != tc.want {
+				t.Errorf("GOWORK=%q, want %q", got, tc.want)
+			}
+		})
+	}
+}

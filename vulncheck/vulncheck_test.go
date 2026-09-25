@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -137,5 +138,32 @@ func TestResolveGovulncheckNotFound(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "not found") {
 		t.Errorf("Gate error = %q, want it to mention %q", err.Error(), "not found")
+	}
+}
+
+func TestGateScansInExitCodeModeWithWorkspaceOff(t *testing.T) {
+	record := filepath.Join(t.TempDir(), "scan")
+	body := "#!/bin/sh\n" +
+		"if [ \"$1\" = \"-version\" ]; then\n" +
+		"  echo \"Scanner: govulncheck@v1.6.0\"\n" +
+		"  exit 0\n" +
+		"fi\n" +
+		"printf 'GOWORK=%s\\n' \"$GOWORK\" > \"" + record + "\"\n" +
+		"printf '%s\\n' \"$@\" >> \"" + record + "\"\n" +
+		"exit 0\n"
+	gv := writeNamedStub(t, t.TempDir(), "govulncheck-recorder", body)
+
+	mods := []Module{{Name: "cli", Dir: t.TempDir()}}
+	if err := Gate(context.Background(), mods, GateOpts{GovulncheckPath: gv, ReportDir: t.TempDir()}); err != nil {
+		t.Fatalf("Gate: %v", err)
+	}
+	data, err := os.ReadFile(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := strings.Split(strings.TrimSpace(string(data)), "\n")
+	want := []string{"GOWORK=off", "./..."}
+	if !slices.Equal(got, want) {
+		t.Errorf("scan invocation = %q, want %q", got, want)
 	}
 }

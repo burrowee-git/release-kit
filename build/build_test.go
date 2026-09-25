@@ -53,8 +53,6 @@ func TestCompileHostBinaryWithLdflags(t *testing.T) {
 	}
 }
 
-// refusingSigner fails the test the moment Sign is invoked, proving a
-// foreign-OS build never reaches the signing step.
 type refusingSigner struct{ t *testing.T }
 
 func (r refusingSigner) Sign(ctx context.Context, binaryPath string) error {
@@ -105,9 +103,6 @@ func TestCompileRelativeOutDirResolvesToOneBase(t *testing.T) {
 		"package main\nfunc main(){}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	// cwd distinct from SrcDir: a relative OutDir must resolve against a single
-	// base for MkdirAll, `go build -o`, and the recorded Artifact.Path alike.
-	// Without that, MkdirAll uses cwd while `go build` uses cmd.Dir=SrcDir.
 	work := t.TempDir()
 	t.Chdir(work)
 

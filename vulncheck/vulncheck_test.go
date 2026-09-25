@@ -9,9 +9,6 @@ import (
 	"testing"
 )
 
-// stubScript builds a POSIX sh script that answers both invocation shapes
-// Gate uses: `<tool> -version` (emits a valid version line) and
-// `<tool> ./...` (the scan itself, exiting with exit).
 func stubScript(exit int) string {
 	return "#!/bin/sh\n" +
 		"if [ \"$1\" = \"-version\" ]; then\n" +
@@ -41,11 +38,9 @@ func TestGateCleanAndFinding(t *testing.T) {
 	reports := t.TempDir()
 	mods := []Module{{Name: "cli", Dir: mdir}}
 
-	// clean (exit 0) → nil
 	if err := Gate(context.Background(), mods, GateOpts{GovulncheckPath: writeStub(t, t.TempDir(), 0), ReportDir: reports}); err != nil {
 		t.Fatalf("clean gate returned error: %v", err)
 	}
-	// finding (exit 3) → error + report written
 	err := Gate(context.Background(), mods, GateOpts{GovulncheckPath: writeStub(t, t.TempDir(), 3), ReportDir: reports})
 	if err == nil {
 		t.Fatal("finding gate returned nil (should fail closed)")
@@ -83,8 +78,6 @@ func TestGateRejectsAncientGovulncheck(t *testing.T) {
 }
 
 func TestGateProceedsWhenVersionProbeFails(t *testing.T) {
-	// -version itself errors/unparseable: belt-and-suspenders only, must not
-	// block an otherwise-clean scan.
 	body := "#!/bin/sh\n" +
 		"if [ \"$1\" = \"-version\" ]; then\n" +
 		"  echo \"not a version string\"\n" +
@@ -105,7 +98,6 @@ func TestGateProceedsWhenVersionProbeFails(t *testing.T) {
 func TestGateSurfacesReportWriteError(t *testing.T) {
 	mdir := t.TempDir()
 	reports := t.TempDir()
-	// Pre-create a directory at the exact report path so os.WriteFile fails.
 	if err := os.Mkdir(filepath.Join(reports, "cli.txt"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -130,9 +122,8 @@ func TestResolveGovulncheckFromPath(t *testing.T) {
 }
 
 func TestResolveGovulncheckNotFound(t *testing.T) {
-	t.Setenv("PATH", t.TempDir()) // empty: no govulncheck on PATH
+	t.Setenv("PATH", t.TempDir())
 
-	// GoBin stub: `<goBin> env GOPATH` echoes a GOPATH with no bin/govulncheck.
 	goBinDir := t.TempDir()
 	body := "#!/bin/sh\necho \"" + filepath.Join(goBinDir, "nonexistent-gopath") + "\"\n"
 	goBin := writeNamedStub(t, goBinDir, "go-stub", body)

@@ -16,7 +16,6 @@ func TestSignVerifyRoundtrip(t *testing.T) {
 	dir := t.TempDir()
 	sec := filepath.Join(dir, "key.sec")
 	pub := filepath.Join(dir, "key.pub")
-	// -W → password-less key (no interactive prompt)
 	if out, err := exec.Command("minisign", "-G", "-W", "-p", pub, "-s", sec).CombinedOutput(); err != nil {
 		t.Fatalf("keygen: %v\n%s", err, out)
 	}
@@ -33,7 +32,6 @@ func TestSignVerifyRoundtrip(t *testing.T) {
 	if err := Verify(context.Background(), sums, pub); err != nil {
 		t.Fatalf("Verify: %v", err)
 	}
-	// tamper → verify must fail
 	if err := os.WriteFile(sums, []byte("tampered  x\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -55,12 +53,11 @@ func TestSignAbsolutizesPaths(t *testing.T) {
 	}
 	t.Setenv("PATH", stubDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-	// Caller-supplied dash-prefixed paths must not reach minisign as flags.
 	if err := Sign(context.Background(), "-m-sums", "-s-key"); err != nil {
 		t.Fatalf("Sign: %v", err)
 	}
 	lines := readArgs(t, argsFile)
-	if len(lines) != 5 { // minisign -S -s <key> -m <sums>
+	if len(lines) != 5 {
 		t.Fatalf("stub saw args %v", lines)
 	}
 	if !filepath.IsAbs(lines[2]) {

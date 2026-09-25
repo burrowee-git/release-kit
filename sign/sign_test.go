@@ -12,14 +12,12 @@ import (
 )
 
 func TestAppleSignerCommand(t *testing.T) {
-	// plain codesign mode (no wrapper)
 	bin, args := AppleSigner{Identity: "Developer ID Application: X (TEAM)"}.command("/tmp/b")
 	got := bin + " " + strings.Join(args, " ")
 	want := "codesign --sign Developer ID Application: X (TEAM) --force --options runtime --timestamp /tmp/b"
 	if got != want {
 		t.Errorf("plain:\n got=%q\nwant=%q", got, want)
 	}
-	// wrapper mode
 	bin, args = AppleSigner{Identity: "ignored", ToolPath: "signtool"}.command("/tmp/b")
 	got = bin + " " + strings.Join(args, " ")
 	if got != "signtool sign /tmp/b" {
@@ -56,8 +54,6 @@ func TestAppleSignerSignError(t *testing.T) {
 	}
 }
 
-// writeArgsStub writes an executable that records the args it receives, one per
-// line, to argsFile. Shared by the sign + notarize absolutization tests.
 func writeArgsStub(t *testing.T, argsFile string) string {
 	t.Helper()
 	p := filepath.Join(t.TempDir(), "args-stub")
@@ -71,7 +67,6 @@ func writeArgsStub(t *testing.T, argsFile string) string {
 func TestAppleSignerAbsolutizesPath(t *testing.T) {
 	argsFile := filepath.Join(t.TempDir(), "args")
 	s := AppleSigner{ToolPath: writeArgsStub(t, argsFile)}
-	// A path beginning with "-" must not reach the tool as a bare flag-shaped arg.
 	if err := s.Sign(context.Background(), "-x"); err != nil {
 		t.Fatalf("Sign: %v", err)
 	}
@@ -80,7 +75,7 @@ func TestAppleSignerAbsolutizesPath(t *testing.T) {
 		t.Fatal(err)
 	}
 	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
-	if len(lines) != 2 { // "sign", <path>
+	if len(lines) != 2 {
 		t.Fatalf("stub saw args %v, want [sign <path>]", lines)
 	}
 	if strings.HasPrefix(lines[1], "-") || !filepath.IsAbs(lines[1]) {

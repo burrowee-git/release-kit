@@ -1,6 +1,3 @@
-// Package version composes release version stamps from a semver source-of-truth
-// file and a source worktree's HEAD sha. The stamp format is a caller-supplied
-// Scheme, so each product picks its own layout.
 package version
 
 import (
@@ -15,27 +12,22 @@ import (
 	"time"
 )
 
-// BumpKind selects which "X.Y.Z" component Bump increments.
 type BumpKind int
 
-// The three semver components Bump can increment.
 const (
 	BumpPatch BumpKind = iota
 	BumpMinor
 	BumpMajor
 )
 
-// Scheme formats a full stamp from its parts. dateUTC is pre-formatted YYYY.MM.DD.
 type Scheme func(semver, sha, dateUTC string) string
 
-// DateVersionScheme yields "v<semver>.<YYYY.MM.DD>.<sha>".
 func DateVersionScheme(semver, sha, dateUTC string) string {
 	return "v" + semver + "." + dateUTC + "." + sha
 }
 
 var semverRe = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
 
-// Bump returns the next "X.Y.Z" for cur given kind.
 func Bump(cur string, kind BumpKind) (string, error) {
 	if !semverRe.MatchString(cur) {
 		return "", fmt.Errorf("version: not MAJOR.MINOR.PATCH: %q", cur)
@@ -66,8 +58,6 @@ func Bump(cur string, kind BumpKind) (string, error) {
 	return fmt.Sprintf("%d.%d.%d", maj, min, pat), nil
 }
 
-// Stamp reads the semver from semverFile, the short-8 HEAD sha of srcDir, today's
-// UTC date, and applies scheme. ctx bounds the git subprocess.
 func Stamp(ctx context.Context, semverFile, srcDir string, scheme Scheme) (string, error) {
 	raw, err := os.ReadFile(semverFile)
 	if err != nil {

@@ -32,8 +32,6 @@ func TestBump(t *testing.T) {
 }
 
 func TestBumpOverflow(t *testing.T) {
-	// 20 digits overflows int64 (max ~9.2e18, 19 digits); the regex only
-	// guarantees digits, not magnitude.
 	if _, err := Bump("99999999999999999999.0.0", BumpPatch); err == nil {
 		t.Error("Bump accepted an overflow-length component")
 	}
@@ -81,7 +79,7 @@ func TestStamp(t *testing.T) {
 }
 
 func TestStampGitErrorIncludesStderr(t *testing.T) {
-	dir := t.TempDir() // not a git repo
+	dir := t.TempDir()
 	semFile := filepath.Join(dir, "ver")
 	if err := os.WriteFile(semFile, []byte("0.1.0\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -90,8 +88,6 @@ func TestStampGitErrorIncludesStderr(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for a non-git srcDir")
 	}
-	// The bare exit-status wrap ("exit status 128") discards git's diagnostic;
-	// the surfaced error must carry git's stderr.
 	if !strings.Contains(err.Error(), "not a git repository") {
 		t.Errorf("error %q missing git stderr diagnostic", err.Error())
 	}

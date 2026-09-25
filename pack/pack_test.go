@@ -22,7 +22,7 @@ func TestZipFlatWithExecBit(t *testing.T) {
 	out := filepath.Join(dir, "out.zip")
 
 	err := Zip(Spec{Out: out, Contents: []Content{
-		{Src: binp}, // basename → "tool"
+		{Src: binp},
 		{Src: txt, Name: "README.txt"},
 	}})
 	if err != nil {
@@ -46,7 +46,6 @@ func TestZipFlatWithExecBit(t *testing.T) {
 	if _, ok := found["README.txt"]; !ok {
 		t.Fatal("missing renamed README.txt entry")
 	}
-	// content check on README.txt
 	rc, err := r.Open("README.txt")
 	if err != nil {
 		t.Fatal(err)

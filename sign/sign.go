@@ -1,5 +1,3 @@
-// Package sign code-signs macOS binaries with a caller-supplied identity. It is
-// identity-agnostic: no signing account, team, or tool is hardcoded.
 package sign
 
 import (
@@ -9,13 +7,10 @@ import (
 	"path/filepath"
 )
 
-// Signer signs a single binary in place.
 type Signer interface {
 	Sign(ctx context.Context, binaryPath string) error
 }
 
-// AdHocSigner applies an ad-hoc signature (`codesign --sign -`). macOS needs any
-// signature to exec a native binary; this is the default for dev/CI builds.
 type AdHocSigner struct{}
 
 func (AdHocSigner) Sign(ctx context.Context, binaryPath string) error {
@@ -30,10 +25,6 @@ func (AdHocSigner) Sign(ctx context.Context, binaryPath string) error {
 	return nil
 }
 
-// AppleSigner applies a real Developer ID signature. With ToolPath empty it
-// drives `codesign` directly using Identity; with ToolPath set it delegates to a
-// wrapper invoked as `<ToolPath> sign <path>` (e.g. a product's signing helper).
-// Notarization is available via Notarizer (v0.1.1); App Store upload is not this library's job.
 type AppleSigner struct {
 	Identity string
 	ToolPath string

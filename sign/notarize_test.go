@@ -21,8 +21,6 @@ func TestNotarizerCommand(t *testing.T) {
 }
 
 func TestNotarizerRequiresToolPath(t *testing.T) {
-	// Empty ToolPath is a usage error: the seam has no default, because the
-	// notarization tool is the CALLER's choice — this library never picks one.
 	n := Notarizer{}
 	err := n.Notarize(context.Background(), "/tmp/x.zip")
 	if err == nil {
@@ -41,7 +39,6 @@ func TestNotarizerSurfacesToolError(t *testing.T) {
 func TestNotarizeAbsolutizesPath(t *testing.T) {
 	argsFile := filepath.Join(t.TempDir(), "args")
 	n := Notarizer{ToolPath: writeArgsStub(t, argsFile)}
-	// A path beginning with "-" must not reach the tool as a bare flag-shaped arg.
 	if err := n.Notarize(context.Background(), "-x"); err != nil {
 		t.Fatalf("Notarize: %v", err)
 	}
@@ -50,7 +47,7 @@ func TestNotarizeAbsolutizesPath(t *testing.T) {
 		t.Fatal(err)
 	}
 	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
-	if len(lines) != 2 { // "notarize", <path>
+	if len(lines) != 2 {
 		t.Fatalf("stub saw args %v, want [notarize <path>]", lines)
 	}
 	if strings.HasPrefix(lines[1], "-") || !filepath.IsAbs(lines[1]) {

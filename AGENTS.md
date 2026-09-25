@@ -23,7 +23,19 @@ Brand-agnostic, secret-free Go primitives for cutting **signed, checksummed, CVE
 See [`DEVELOPMENT.md`](https://github.com/burrowee-git/resources/blob/main/docs/guidelines/DEVELOPMENT.md)
 for the standard this code is written and reviewed against: think before coding,
 simplicity first, surgical changes, verify before declaring done
-(`GOWORK=off go build/vet/test ./...` must stay green — 30 tests / 8 packages).
+(`GOWORK=off go build/vet/test ./...` must stay green — 37 tests + 1 example / 8 packages).
+
+## Pre-land gate
+
+Run on the CI target, never `go test` on a Darwin workstation:
+
+```sh
+GOWORK=off go build ./... && GOWORK=off go vet ./... && GOWORK=off go test -count=1 ./... \
+  && ~/.agents/scripts/comment-lint.sh --check .
+```
+
+`comment-lint --check` must exit 0: source carries no comments except the
+directives Go tooling parses (hard rule 10).
 
 ## Task dispatch
 

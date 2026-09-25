@@ -23,19 +23,40 @@ Brand-agnostic, secret-free Go primitives for cutting **signed, checksummed, CVE
 See [`DEVELOPMENT.md`](https://github.com/burrowee-git/resources/blob/main/docs/guidelines/DEVELOPMENT.md)
 for the standard this code is written and reviewed against: think before coding,
 simplicity first, surgical changes, verify before declaring done
-(`GOWORK=off go build/vet/test ./...` must stay green — 37 tests + 1 example / 8 packages).
+(`ci/run-tests.sh` must stay green — 39 tests + 1 example / 9 packages).
 
-## Pre-land gate
+## Suite command and pre-land gate
 
-Run on the CI target, never `go test` on a Darwin workstation:
+`ci/run-tests.sh` is the suite command; `ci/run-tests.sh --help` is its reference.
+It bundles the committed ref (default the current branch; uncommitted work is not
+tested), clones it under `$HOME/ci-runs` on burrowee-ci, and runs `go test -count=1`
+there with go1.26.6 from the module cache (`GOWORK=off`, `GOPROXY=off`,
+`TMPDIR=/tmp`, `GOTMPDIR` unset) under `ci-lock run burrowee`. Artifacts land in
+`.ci-out/<short sha>/` (gitignored). Never `go test` on a Darwin workstation.
+`ci-test` compiles for linux here and then execs it.
+
+Pre-land gate:
 
 ```sh
-GOWORK=off go build ./... && GOWORK=off go vet ./... && GOWORK=off go test -count=1 ./... \
-  && ~/.agents/scripts/comment-lint.sh --check .
+GOWORK=off GOOS=linux go build ./... && GOWORK=off GOOS=linux go vet ./...
+ci/run-tests.sh --json ./...
+~/.agents/scripts/comment-lint.sh --check .
 ```
 
 `comment-lint --check` must exit 0: source carries no comments except the
 directives Go tooling parses (hard rule 10).
+
+The test-suite review runs:
+
+```sh
+ci/run-tests.sh --json --cover ./...        # counts with skips (counts.txt), covered set (covered.txt)
+ci/run-tests.sh --json ./... -- -shuffle=on # shuffled; per-package seeds in seeds.txt
+ci/run-tests.sh --json ./... -- -count=5    # repeated
+```
+
+The module cache on burrowee-ci is per account. A run as an account whose cache
+lacks the go1.26.6 toolchain fails offline: seed it from the workstation, never by
+putting a token on the machine.
 
 ## Task dispatch
 

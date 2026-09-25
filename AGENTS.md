@@ -6,7 +6,7 @@ Brand-agnostic, secret-free Go primitives for cutting **signed, checksummed, CVE
 
 - **Repo:** `burrowee-git/release-kit` (**PUBLIC**, published 2026-07-13) · module `github.com/burrowee-git/release-kit`
 - **`gh.account`:** `burrowee-git`
-- **Branch model:** trunk `main` (deploy/tag origin); code on `dev` worktree at `../.worktrees/dev`. Tags are the release surface — `v0.1.0` and `v0.1.1` shipped.
+- **Branch model:** trunk `main` (deploy/tag origin); code on `dev`, checked out beside `main` at `code/dev`; project worktrees under `code/.worktrees/<project-id>`. Tags are the release surface — `v0.1.0` and `v0.1.1` shipped.
 - **Stack:** Go 1.25, **no third-party deps**; shells out only to `go`, `git`, `codesign`, `minisign`, `govulncheck`.
 - **Packages:** `version` · `build` · `sign` · `checksum` · `minisign` · `pack` · `vulncheck` (+ root `releasekit` doc package, `example_test.go`).
 - **Consumers:** each product's `release` repo imports these and orchestrates in its own `cmd/release/main.go`. See [`GUIDE.md`](GUIDE.md) to stand up a new one; `Example_releaseFlow` in `example_test.go` shows the compose order.

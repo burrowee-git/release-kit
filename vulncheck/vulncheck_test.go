@@ -142,6 +142,7 @@ func TestResolveGovulncheckNotFound(t *testing.T) {
 }
 
 func TestGateScansInExitCodeModeWithWorkspaceOff(t *testing.T) {
+	t.Setenv("GOWORK", "auto")
 	record := filepath.Join(t.TempDir(), "scan")
 	body := "#!/bin/sh\n" +
 		"if [ \"$1\" = \"-version\" ]; then\n" +

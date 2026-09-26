@@ -205,9 +205,21 @@ func targetSuiteCmd(t *testing.T, log string, env ...string) (*exec.Cmd, string)
 func TestTargetSuiteRecordsAndHangupKillsTheSuitesWholeProcessGroup(t *testing.T) {
 	log := filepath.Join(t.TempDir(), "shim.log")
 	cmd, work := targetSuiteCmd(t, log)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() {
+		if pgid, err := os.ReadFile(filepath.Join(work, "pgid")); err == nil {
+			if g, err := strconv.Atoi(strings.TrimSpace(string(pgid))); err == nil && g > 1 {
+				_ = syscall.Kill(-g, syscall.SIGKILL)
+			}
+		}
+		if cmd.ProcessState == nil {
+			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+			_ = cmd.Wait()
+		}
+	})
 	waitForLine(t, log, "started")
 	recorded, err := os.ReadFile(filepath.Join(work, "pgid"))
 	if err != nil {

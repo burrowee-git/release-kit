@@ -33,8 +33,11 @@ tested), clones it under `$HOME/ci-runs` on burrowee-ci, and runs `go test -coun
 there with go1.26.6 from the module cache (`GOWORK=off`, `GOPROXY=off`,
 `TMPDIR=/tmp`, `GOTMPDIR` unset) under `ci-lock run burrowee`. Each run's artifacts
 land in a new `.ci-out/<short sha>.XXXXXX/` (gitignored; the path is printed), so
-concurrent runs of one sha never share one. An interrupt stops the run on the machine
-before its workdir there is removed. Never `go test` on a Darwin workstation.
+concurrent runs of one sha never share one. On the machine, `go test` runs in its own
+process group, whose id is kept in the run's `pgid` file. An interrupt (Ctrl-C) first
+kills the local ssh. It then sends that group TERM over one ssh and waits up to 10 s
+for the group to exit. Only then does it remove the run's workdir, and `ci-lock`
+releases the lock when its child ends. Never `go test` on a Darwin workstation.
 `ci-test` compiles for linux here and then execs it.
 
 Pre-land gate:

@@ -98,7 +98,7 @@ remove_remote_work() {
 stop_script='f=$1
 [ -f "$f" ] || exit 0
 g=$(cat "$f")
-case $g in "" | *[!0-9]* | 0 | 1) exit 0 ;; esac
+case $g in "" | *[!0-9]* | 0* | 1) exit 0 ;; esac
 kill -s TERM -- "-$g" 2>/dev/null || kill -s TERM "$g" 2>/dev/null || exit 0
 i=0
 while [ "$i" -lt 100 ] && { kill -0 -- "-$g" 2>/dev/null || kill -0 "$g" 2>/dev/null; }; do

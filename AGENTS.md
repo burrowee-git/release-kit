@@ -23,7 +23,7 @@ Brand-agnostic, secret-free Go primitives for cutting **signed, checksummed, CVE
 See [`DEVELOPMENT.md`](https://github.com/burrowee-git/resources/blob/main/docs/guidelines/DEVELOPMENT.md)
 for the standard this code is written and reviewed against: think before coding,
 simplicity first, surgical changes, verify before declaring done
-(`ci/run-tests.sh` must stay green — 39 tests + 1 example / 9 packages).
+(`ci/run-tests.sh` must stay green — 43 tests + 1 example / 9 packages).
 
 ## Suite command and pre-land gate
 
@@ -31,8 +31,10 @@ simplicity first, surgical changes, verify before declaring done
 It bundles the committed ref (default the current branch; uncommitted work is not
 tested), clones it under `$HOME/ci-runs` on burrowee-ci, and runs `go test -count=1`
 there with go1.26.6 from the module cache (`GOWORK=off`, `GOPROXY=off`,
-`TMPDIR=/tmp`, `GOTMPDIR` unset) under `ci-lock run burrowee`. Artifacts land in
-`.ci-out/<short sha>/` (gitignored). Never `go test` on a Darwin workstation.
+`TMPDIR=/tmp`, `GOTMPDIR` unset) under `ci-lock run burrowee`. Each run's artifacts
+land in a new `.ci-out/<short sha>.XXXXXX/` (gitignored; the path is printed), so
+concurrent runs of one sha never share one. An interrupt stops the run on the machine
+before its workdir there is removed. Never `go test` on a Darwin workstation.
 `ci-test` compiles for linux here and then execs it.
 
 Pre-land gate:
@@ -49,7 +51,7 @@ directives Go tooling parses (hard rule 10).
 The test-suite review runs:
 
 ```sh
-ci/run-tests.sh --json --cover ./...        # counts with skips (counts.txt), covered set (covered.txt)
+ci/run-tests.sh --json --cover ./...        # counts with skips and failed packages (counts.txt), covered set (covered.txt)
 ci/run-tests.sh --json ./... -- -shuffle=on # shuffled; per-package seeds in seeds.txt
 ci/run-tests.sh --json ./... -- -count=5    # repeated
 ```

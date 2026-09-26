@@ -14,11 +14,18 @@ import (
 )
 
 const sshShim = `#!/bin/sh
+watch_test() {
+	i=0
+	while [ "$i" -lt 150 ] && kill -0 "$TEST_PID" 2>/dev/null; do
+		sleep 0.2
+		i=$((i + 1))
+	done
+}
 case "$*" in
 *mktemp*) echo "$FAKE_WORK" ;;
 *ci-lock*)
 	echo run >>"$SHIM_LOG"
-	sleep 30 &
+	watch_test &
 	trap 'kill $!; sleep 0.5; echo run-killed >>"$SHIM_LOG"; exit 143' TERM
 	wait
 	;;
@@ -33,6 +40,13 @@ esac
 `
 
 const goSuiteShim = `#!/bin/sh
+watch_test() {
+	i=0
+	while [ "$i" -lt 150 ] && kill -0 "$TEST_PID" 2>/dev/null; do
+		sleep 0.2
+		i=$((i + 1))
+	done
+}
 case "$1" in
 version) echo "go version go1.26.6 linux/arm64" ;;
 test)
@@ -40,8 +54,11 @@ test)
 		cat "$FAKE_TEST_JSON"
 		exit 1
 	fi
-	sh -c 'sleep 30 & trap "kill \$!; echo child-term >>\"$SHIM_LOG\"; exit 143" TERM; wait' &
-	sleep 30 &
+	(
+		trap 'echo child-term >>"$SHIM_LOG"; exit 143' TERM
+		watch_test
+	) &
+	watch_test &
 	trap 'kill $!; echo go-term >>"$SHIM_LOG"; exit 143' TERM
 	echo "pgid $(ps -o pgid= -p $$ | tr -d ' ')" >>"$SHIM_LOG"
 	echo started >>"$SHIM_LOG"
@@ -166,7 +183,8 @@ func TestRunTestsInterruptStopsTheRemoteSuiteBeforeRemovingItsWorkdir(t *testing
 	startRemoteSuite(t, work, log)
 	cmd := exec.Command("bash", "ci/run-tests.sh")
 	cmd.Dir = repo
-	cmd.Env = append(os.Environ(), "PATH="+shims+":"+os.Getenv("PATH"), "SHIM_LOG="+log, "FAKE_WORK="+work)
+	cmd.Env = append(os.Environ(), "PATH="+shims+":"+os.Getenv("PATH"), "SHIM_LOG="+log, "FAKE_WORK="+work,
+		"TEST_PID="+strconv.Itoa(os.Getpid()))
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -197,7 +215,7 @@ func targetSuiteCmd(t *testing.T, log string, env ...string) (*exec.Cmd, string)
 	}
 	shims := writeShims(t, map[string]string{"go": goSuiteShim, "git": gitCloneShim})
 	cmd := exec.Command("bash", "target-suite.sh", work, "0000000", "go1.26.6", "0", "1", "0")
-	cmd.Env = append(os.Environ(), append([]string{"HOME=" + home, "SHIM_LOG=" + log,
+	cmd.Env = append(os.Environ(), append([]string{"HOME=" + home, "SHIM_LOG=" + log, "TEST_PID=" + strconv.Itoa(os.Getpid()),
 		"PATH=" + shims + ":" + os.Getenv("PATH")}, env...)...)
 	return cmd, work
 }

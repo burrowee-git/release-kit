@@ -5,6 +5,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -19,6 +21,11 @@ case "$*" in
 	sleep 30 &
 	trap 'kill $!; sleep 0.5; echo run-killed >>"$SHIM_LOG"; exit 143' TERM
 	wait
+	;;
+*pgid*)
+	for last; do :; done
+	echo stop >>"$SHIM_LOG"
+	sh -c "$last"
 	;;
 *"rm -rf"*) echo rm >>"$SHIM_LOG" ;;
 *) echo "other $*" >>"$SHIM_LOG" ;;
@@ -36,6 +43,7 @@ test)
 	sh -c 'sleep 30 & trap "kill \$!; echo child-term >>\"$SHIM_LOG\"; exit 143" TERM; wait' &
 	sleep 30 &
 	trap 'kill $!; echo go-term >>"$SHIM_LOG"; exit 143' TERM
+	echo "pgid $(ps -o pgid= -p $$ | tr -d ' ')" >>"$SHIM_LOG"
 	echo started >>"$SHIM_LOG"
 	wait
 	;;
@@ -112,14 +120,53 @@ func gitRepoWithRunner(t *testing.T) string {
 	return repo
 }
 
-func TestRunTestsInterruptKillsTheRunBeforeRemovingItsWorkdir(t *testing.T) {
+const fakeRemoteSuite = `#!/bin/sh
+parent=$1
+if [ -z "${FAKE_SUITE_CHILD:-}" ]; then
+	FAKE_SUITE_CHILD=1 sh "$0" "$parent" &
+	trap 'echo suite-term >>"$SHIM_LOG"; exit 143' TERM
+else
+	trap 'echo suite-child-term >>"$SHIM_LOG"; exit 143' TERM
+fi
+while kill -0 "$parent" 2>/dev/null; do sleep 0.2; done
+`
+
+func startRemoteSuite(t *testing.T, work, log string) {
+	t.Helper()
+	script := filepath.Join(t.TempDir(), "suite.sh")
+	if err := os.WriteFile(script, []byte(fakeRemoteSuite), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	suite := exec.Command("sh", script, strconv.Itoa(os.Getpid()))
+	suite.Env = append(os.Environ(), "SHIM_LOG="+log)
+	suite.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := suite.Start(); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	go func() { _ = suite.Wait(); close(done) }()
+	t.Cleanup(func() {
+		_ = syscall.Kill(-suite.Process.Pid, syscall.SIGKILL)
+		<-done
+	})
+	pgid := strconv.Itoa(suite.Process.Pid)
+	if err := os.WriteFile(filepath.Join(work, "pgid"), []byte(pgid+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRunTestsInterruptStopsTheRemoteSuiteBeforeRemovingItsWorkdir(t *testing.T) {
 	repo := gitRepoWithRunner(t)
 	shims := writeShims(t, map[string]string{"ssh": sshShim, "scp": "#!/bin/sh\n"})
 	log := filepath.Join(t.TempDir(), "shim.log")
+	work := filepath.Join(t.TempDir(), "ci-runs", "release-kit.abc123")
+	if err := os.MkdirAll(work, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	startRemoteSuite(t, work, log)
 	cmd := exec.Command("bash", "ci/run-tests.sh")
 	cmd.Dir = repo
-	cmd.Env = append(os.Environ(), "PATH="+shims+":"+os.Getenv("PATH"), "SHIM_LOG="+log,
-		"FAKE_WORK=/home/ci/ci-runs/release-kit.abc123")
+	cmd.Env = append(os.Environ(), "PATH="+shims+":"+os.Getenv("PATH"), "SHIM_LOG="+log, "FAKE_WORK="+work)
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -130,8 +177,14 @@ func TestRunTestsInterruptKillsTheRunBeforeRemovingItsWorkdir(t *testing.T) {
 	code := exitCode(t, cmd)
 
 	b, _ := os.ReadFile(log)
-	if got := string(b); got != "run\nrun-killed\nrm\n" || code != 130 {
-		t.Fatalf("exit %d, remote actions %q; want exit 130 and the run killed before its workdir is removed", code, got)
+	got := strings.Split(strings.TrimSuffix(string(b), "\n"), "\n")
+	if len(got) == 6 {
+		slices.Sort(got[3:5])
+	}
+	want := []string{"run", "run-killed", "stop", "suite-child-term", "suite-term", "rm"}
+	if !slices.Equal(got, want) || code != 130 {
+		t.Fatalf("exit %d, remote actions %q; want exit 130, the local run killed, then every process in "+
+			"the recorded group stopped, then its workdir removed", code, b)
 	}
 }
 
@@ -149,13 +202,18 @@ func targetSuiteCmd(t *testing.T, log string, env ...string) (*exec.Cmd, string)
 	return cmd, work
 }
 
-func TestTargetSuiteHangupKillsTheSuitesWholeProcessGroup(t *testing.T) {
+func TestTargetSuiteRecordsAndHangupKillsTheSuitesWholeProcessGroup(t *testing.T) {
 	log := filepath.Join(t.TempDir(), "shim.log")
-	cmd, _ := targetSuiteCmd(t, log)
+	cmd, work := targetSuiteCmd(t, log)
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
 	waitForLine(t, log, "started")
+	recorded, err := os.ReadFile(filepath.Join(work, "pgid"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitForLine(t, log, "pgid "+strings.TrimSpace(string(recorded)))
 	if err := cmd.Process.Signal(syscall.SIGHUP); err != nil {
 		t.Fatal(err)
 	}
@@ -182,6 +240,9 @@ func TestRecordCountsNamesAFailedPackage(t *testing.T) {
 	cmd, work := targetSuiteCmd(t, filepath.Join(t.TempDir(), "shim.log"), "FAKE_TEST_JSON="+fixture)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("target-suite.sh: %v %s", err, out)
+	}
+	if _, err := os.Stat(filepath.Join(work, "pgid")); !os.IsNotExist(err) {
+		t.Fatalf("a finished suite left its process-group record behind (stat: %v)", err)
 	}
 	counts, err := os.ReadFile(filepath.Join(work, "counts.txt"))
 	if err != nil {

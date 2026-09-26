@@ -95,10 +95,31 @@ remove_remote_work() {
 		echo "run-tests: could not remove $host:$remote_work" >&2
 }
 
+stop_script='f=$1
+[ -f "$f" ] || exit 0
+g=$(cat "$f")
+case $g in "" | *[!0-9]* | 0 | 1) exit 0 ;; esac
+kill -s TERM -- "-$g" 2>/dev/null || kill -s TERM "$g" 2>/dev/null || exit 0
+i=0
+while [ "$i" -lt 100 ] && { kill -0 -- "-$g" 2>/dev/null || kill -0 "$g" 2>/dev/null; }; do
+	sleep 0.1
+	i=$((i + 1))
+done
+[ "$i" -lt 100 ] || echo "run-tests: process group $g still alive after 10s" >&2'
+
+stop_remote_suite() {
+	is_run_dir "$remote_work" || return 0
+	printf '%s\n' "$stop_script" | ssh "${ssh_opts[@]}" "$host" "bash -s -- $(printf '%q' "$remote_work/pgid")" ||
+		echo "run-tests: could not stop the suite on $host" >&2
+}
+
 cleanup() {
 	if [ -n "$run_pid" ]; then
 		kill "$run_pid" 2>/dev/null || true
 		wait "$run_pid" 2>/dev/null || true
+		if [ -n "$remote_work" ]; then
+			stop_remote_suite
+		fi
 	fi
 	rm -rf -- "$local_tmp"
 	if [ -n "$remote_work" ]; then

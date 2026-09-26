@@ -62,8 +62,10 @@ in_own_group() {
 	shift 2
 	(cd "$work/src" && exec setsid "$@") >"$sink" 2>"$errs" </dev/null &
 	group=$!
+	echo "$group" >"$work/pgid"
 	local status=0
 	wait "$group" || status=$?
+	rm -f "$work/pgid"
 	group=
 	return "$status"
 }

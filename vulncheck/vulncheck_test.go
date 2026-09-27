@@ -134,6 +134,7 @@ func TestGateVersionFloor(t *testing.T) {
 }
 
 func govulncheckOnPath(t *testing.T) GateOpts {
+	t.Helper()
 	dir := t.TempDir()
 	writeNamedStub(t, dir, "govulncheck", stubScript(0))
 	t.Setenv("PATH", dir)
@@ -141,6 +142,7 @@ func govulncheckOnPath(t *testing.T) GateOpts {
 }
 
 func govulncheckInGopathBin(t *testing.T) GateOpts {
+	t.Helper()
 	gopath := t.TempDir()
 	if err := os.Mkdir(filepath.Join(gopath, "bin"), 0o755); err != nil {
 		t.Fatal(err)
@@ -151,6 +153,7 @@ func govulncheckInGopathBin(t *testing.T) GateOpts {
 }
 
 func govulncheckNowhere(t *testing.T) GateOpts {
+	t.Helper()
 	goBinDir := t.TempDir()
 	body := "#!/bin/sh\necho \"" + filepath.Join(goBinDir, "nonexistent-gopath") + "\"\n"
 	return GateOpts{GoBin: writeNamedStub(t, goBinDir, "go-stub", body)}

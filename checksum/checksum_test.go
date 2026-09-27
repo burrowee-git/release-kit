@@ -72,8 +72,8 @@ func TestWriteSumsRejectsDuplicateBasenames(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for duplicate basename, got nil")
 	}
-	if !strings.Contains(err.Error(), "tool") {
-		t.Errorf("error %q does not mention the colliding basename", err)
+	if !strings.Contains(err.Error(), `duplicate basename "tool"`) {
+		t.Errorf("error %q does not name the colliding basename as a duplicate", err)
 	}
 }
 

@@ -118,3 +118,26 @@ func TestZipRejectsDuplicateNames(t *testing.T) {
 		t.Errorf("error %q does not mention the colliding name", err)
 	}
 }
+
+func TestZipReportsIOErrors(t *testing.T) {
+	dir := t.TempDir()
+	txt := filepath.Join(dir, "notes.txt")
+	if err := os.WriteFile(txt, []byte("hi"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cases := []struct {
+		name string
+		spec Spec
+		says string
+	}{
+		{name: "missing_src", spec: Spec{Out: filepath.Join(dir, "a.zip"), Contents: []Content{{Src: filepath.Join(dir, "absent")}}}, says: "no such file or directory"},
+		{name: "out_not_creatable", spec: Spec{Out: filepath.Join(dir, "no-such-dir", "b.zip"), Contents: []Content{{Src: txt}}}, says: "pack: create"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := Zip(tc.spec); err == nil || !strings.Contains(err.Error(), tc.says) {
+				t.Errorf("Zip error = %v, want one containing %q", err, tc.says)
+			}
+		})
+	}
+}

@@ -14,15 +14,20 @@ import (
 	"github.com/burrowee-git/release-kit/sign"
 )
 
-func TestCompileHostBinaryWithLdflags(t *testing.T) {
+func writeTinyModule(t *testing.T, mainSrc string) string {
+	t.Helper()
 	src := t.TempDir()
 	if err := os.WriteFile(filepath.Join(src, "go.mod"), []byte("module tiny\ngo 1.25.0\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(src, "main.go"), []byte(
-		"package main\nimport \"fmt\"\nvar version = \"dev\"\nfunc main(){ fmt.Print(version) }\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(src, "main.go"), []byte(mainSrc), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	return src
+}
+
+func TestCompileHostBinaryWithLdflags(t *testing.T) {
+	src := writeTinyModule(t, "package main\nimport \"fmt\"\nvar version = \"dev\"\nfunc main(){ fmt.Print(version) }\n")
 	out := t.TempDir()
 
 	arts, err := Compile(context.Background(), Spec{
@@ -63,14 +68,7 @@ func (r refusingSigner) Sign(ctx context.Context, binaryPath string) error {
 }
 
 func TestCompileForeignOSNotSigned(t *testing.T) {
-	src := t.TempDir()
-	if err := os.WriteFile(filepath.Join(src, "go.mod"), []byte("module tiny\ngo 1.25.0\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(src, "main.go"), []byte(
-		"package main\nfunc main(){}\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	src := writeTinyModule(t, "package main\nfunc main(){}\n")
 	out := t.TempDir()
 
 	foreignOS := "linux"
@@ -96,14 +94,7 @@ func TestCompileForeignOSNotSigned(t *testing.T) {
 }
 
 func TestCompileRelativeOutDirResolvesToOneBase(t *testing.T) {
-	src := t.TempDir()
-	if err := os.WriteFile(filepath.Join(src, "go.mod"), []byte("module tiny\ngo 1.25.0\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(src, "main.go"), []byte(
-		"package main\nfunc main(){}\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	src := writeTinyModule(t, "package main\nfunc main(){}\n")
 	work := t.TempDir()
 	t.Chdir(work)
 

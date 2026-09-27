@@ -80,3 +80,12 @@ func TestWriteSumsRejectsDuplicateBasenames(t *testing.T) {
 		t.Errorf("error %q does not mention the colliding basename", err)
 	}
 }
+
+func TestWriteSumsRejectsUnreadableFile(t *testing.T) {
+	dir := t.TempDir()
+	missing := filepath.Join(dir, "missing.bin")
+	err := WriteSums([]string{missing}, filepath.Join(dir, "SHA256SUMS.txt"))
+	if err == nil || !strings.Contains(err.Error(), "checksum: hash") {
+		t.Errorf("WriteSums error = %v, want a checksum: hash error", err)
+	}
+}

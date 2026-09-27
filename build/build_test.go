@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -170,6 +171,56 @@ func TestCompileGoWorkReachesTheBuild(t *testing.T) {
 			}
 			if string(got) != tc.want {
 				t.Errorf("GOWORK=%q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestCompileRunsGoBuild(t *testing.T) {
+	src := t.TempDir()
+	sub := filepath.Join(src, "nested")
+	if err := os.Mkdir(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cases := []struct {
+		name    string
+		subDir  string
+		exit    int
+		wantDir string
+		wantErr string
+	}{
+		{name: "sub_dir", subDir: "nested", wantDir: sub},
+		{name: "build_failure", exit: 1, wantDir: src, wantErr: "stub build failure"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			record := filepath.Join(t.TempDir(), "pwd")
+			goBin := filepath.Join(t.TempDir(), "go-recorder")
+			body := "#!/bin/sh\npwd -P > \"" + record + "\"\necho 'stub build failure'\nexit " + strconv.Itoa(tc.exit) + "\n"
+			if err := os.WriteFile(goBin, []byte(body), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			_, err := Compile(context.Background(), Spec{
+				SrcDir: src, GoBin: goBin, OutDir: t.TempDir(),
+				Targets: []Target{{OS: "linux", Arch: "amd64"}},
+				Bins:    []BinSpec{{Name: "tiny", Package: ".", SubDir: tc.subDir}},
+			})
+			if tc.wantErr == "" && err != nil {
+				t.Fatal(err)
+			}
+			if tc.wantErr != "" && (err == nil || !strings.Contains(err.Error(), tc.wantErr)) {
+				t.Errorf("Compile error = %v, want one containing %q", err, tc.wantErr)
+			}
+			got, err := os.ReadFile(record)
+			if err != nil {
+				t.Fatal(err)
+			}
+			wantDir, err := filepath.EvalSymlinks(tc.wantDir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.TrimSpace(string(got)) != wantDir {
+				t.Errorf("go build ran in %q, want %q", got, wantDir)
 			}
 		})
 	}

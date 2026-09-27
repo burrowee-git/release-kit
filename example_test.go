@@ -32,6 +32,15 @@ func Example_releaseFlow() {
 		return
 	}
 
+	if err := compileSumSignAndPack(ctx, v); err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	fmt.Println("release cut complete")
+}
+
+func compileSumSignAndPack(ctx context.Context, v string) error {
 	arts, err := build.Compile(ctx, build.Spec{
 		SrcDir: "/path/to/myapp",
 		OutDir: "/path/to/out/" + v,
@@ -45,19 +54,16 @@ func Example_releaseFlow() {
 		Signer: sign.AdHocSigner{},
 	})
 	if err != nil {
-		fmt.Println("compile failed:", err)
-		return
+		return fmt.Errorf("compile failed: %w", err)
 	}
 
 	sums := "/path/to/out/" + v + "/SHA256SUMS"
 	if err := checksum.WriteSums(build.Paths(arts), sums); err != nil {
-		fmt.Println("checksum failed:", err)
-		return
+		return fmt.Errorf("checksum failed: %w", err)
 	}
 
 	if err := minisign.Sign(ctx, sums, "/path/to/secrets/minisign.key"); err != nil {
-		fmt.Println("minisign failed:", err)
-		return
+		return fmt.Errorf("minisign failed: %w", err)
 	}
 
 	contents := make([]pack.Content, 0, len(arts)+2)
@@ -72,9 +78,7 @@ func Example_releaseFlow() {
 		Contents: contents,
 		Out:      "/path/to/out/" + v + ".zip",
 	}); err != nil {
-		fmt.Println("pack failed:", err)
-		return
+		return fmt.Errorf("pack failed: %w", err)
 	}
-
-	fmt.Println("release cut complete")
+	return nil
 }

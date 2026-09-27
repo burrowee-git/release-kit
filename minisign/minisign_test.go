@@ -11,7 +11,7 @@ import (
 
 func TestSignVerifyRoundtrip(t *testing.T) {
 	if _, err := exec.LookPath("minisign"); err != nil {
-		t.Skip("minisign not installed")
+		t.Skip("minisign not on PATH; owner: release-kit maintainers; re-enable: install minisign where the suite runs (burrowee-ci has /usr/bin/minisign)")
 	}
 	dir := t.TempDir()
 	sec := filepath.Join(dir, "key.sec")

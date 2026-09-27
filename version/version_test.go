@@ -12,34 +12,22 @@ import (
 
 func TestBump(t *testing.T) {
 	cases := []struct {
+		name string
 		cur  string
 		kind BumpKind
 		want string
 	}{
-		{"0.1.9", BumpPatch, "0.1.10"},
-		{"0.1.9", BumpMinor, "0.2.0"},
-		{"1.4.2", BumpMajor, "2.0.0"},
+		{name: "patch", cur: "0.1.9", kind: BumpPatch, want: "0.1.10"},
+		{name: "minor", cur: "0.1.9", kind: BumpMinor, want: "0.2.0"},
+		{name: "major", cur: "1.4.2", kind: BumpMajor, want: "2.0.0"},
 	}
-	for _, c := range cases {
-		got, err := Bump(c.cur, c.kind)
-		if err != nil || got != c.want {
-			t.Errorf("Bump(%q,%v)=%q,%v want %q", c.cur, c.kind, got, err, c.want)
-		}
-	}
-	if _, err := Bump("notsemver", BumpPatch); err == nil {
-		t.Error("Bump accepted a non-semver")
-	}
-}
-
-func TestBumpOverflow(t *testing.T) {
-	if _, err := Bump("99999999999999999999.0.0", BumpPatch); err == nil {
-		t.Error("Bump accepted an overflow-length component")
-	}
-}
-
-func TestBumpInvalidKind(t *testing.T) {
-	if _, err := Bump("0.1.9", BumpKind(99)); err == nil {
-		t.Error("Bump accepted an invalid kind")
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := Bump(tc.cur, tc.kind)
+			if err != nil || got != tc.want {
+				t.Errorf("Bump(%q,%v)=%q,%v want %q", tc.cur, tc.kind, got, err, tc.want)
+			}
+		})
 	}
 }
 
@@ -108,8 +96,11 @@ func TestBumpRejects(t *testing.T) {
 		cur  string
 		kind BumpKind
 	}{
+		{name: "not_semver", cur: "notsemver", kind: BumpPatch},
+		{name: "major_overflow", cur: "99999999999999999999.0.0", kind: BumpPatch},
 		{name: "minor_overflow", cur: "0.99999999999999999999.0", kind: BumpPatch},
 		{name: "patch_overflow", cur: "0.0.99999999999999999999", kind: BumpPatch},
+		{name: "unknown_kind", cur: "0.1.9", kind: BumpKind(99)},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

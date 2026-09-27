@@ -5,6 +5,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -75,4 +77,73 @@ func readArgs(t *testing.T, argsFile string) []string {
 		t.Fatal(err)
 	}
 	return strings.Split(strings.TrimSpace(string(data)), "\n")
+}
+
+func installStub(t *testing.T, exit int, output string) string {
+	t.Helper()
+	dir := t.TempDir()
+	argsFile := filepath.Join(dir, "args")
+	stubDir := filepath.Join(dir, "bin")
+	if err := os.MkdirAll(stubDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := "#!/bin/sh\n: > \"" + argsFile + "\"\nfor a in \"$@\"; do printf '%s\\n' \"$a\" >> \"" + argsFile + "\"; done\n" +
+		"printf '%s\\n' '" + output + "'\nexit " + strconv.Itoa(exit) + "\n"
+	if err := os.WriteFile(filepath.Join(stubDir, "minisign"), []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", stubDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	return argsFile
+}
+
+func absPath(t *testing.T, p string) string {
+	t.Helper()
+	a, err := filepath.Abs(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return a
+}
+
+func TestArgv(t *testing.T) {
+	cases := []struct {
+		name string
+		call func() error
+		want []string
+	}{
+		{
+			name: "verify",
+			call: func() error { return Verify(context.Background(), "-m-sums", "-p-pub") },
+			want: []string{"-V", "-p", absPath(t, "-p-pub"), "-m", absPath(t, "-m-sums")},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			argsFile := installStub(t, 0, "")
+			if err := tc.call(); err != nil {
+				t.Fatalf("call: %v", err)
+			}
+			if got := readArgs(t, argsFile); !slices.Equal(got, tc.want) {
+				t.Errorf("minisign argv = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestToolFailureCarriesOutput(t *testing.T) {
+	cases := []struct {
+		name string
+		call func() error
+	}{
+		{name: "sign", call: func() error { return Sign(context.Background(), "sums", "key") }},
+		{name: "verify", call: func() error { return Verify(context.Background(), "sums", "pub") }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			installStub(t, 1, "stub minisign failure")
+			if err := tc.call(); err == nil || !strings.Contains(err.Error(), "stub minisign failure") {
+				t.Errorf("error = %v, want one carrying the tool's output", err)
+			}
+		})
+	}
 }

@@ -59,21 +59,30 @@ func TestStamp(t *testing.T) {
 		}
 	}
 	git("init", "-q")
-	os.WriteFile(filepath.Join(dir, "f"), []byte("x"), 0o644)
+	if err := os.WriteFile(filepath.Join(dir, "f"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	git("add", "-A")
 	git("commit", "-q", "-m", "c")
 	semFile := filepath.Join(dir, "ver")
-	os.WriteFile(semFile, []byte("0.1.0\n"), 0o644)
+	if err := os.WriteFile(semFile, []byte("0.1.0\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
+	before := time.Now().UTC().Format("2006.01.02")
 	got, err := Stamp(context.Background(), semFile, dir, DateVersionScheme)
 	if err != nil {
 		t.Fatal(err)
 	}
-	today := time.Now().UTC().Format("2006.01.02")
-	if !strings.HasPrefix(got, "v0.1.0."+today+".") {
-		t.Errorf("stamp %q missing v0.1.0.%s. prefix", got, today)
+	after := time.Now().UTC().Format("2006.01.02")
+	prefix := "v0.1.0." + before + "."
+	if !strings.HasPrefix(got, prefix) {
+		prefix = "v0.1.0." + after + "."
 	}
-	if len(strings.TrimPrefix(got, "v0.1.0."+today+".")) != 8 {
+	if !strings.HasPrefix(got, prefix) {
+		t.Errorf("stamp %q missing v0.1.0.<UTC date>. prefix (date %s or %s)", got, before, after)
+	}
+	if len(strings.TrimPrefix(got, prefix)) != 8 {
 		t.Errorf("stamp %q sha8 suffix wrong length", got)
 	}
 }

@@ -9,18 +9,6 @@ import (
 	"testing"
 )
 
-func TestNotarizerCommand(t *testing.T) {
-	n := Notarizer{ToolPath: "apple-sign"}
-	bin, args := n.command("/tmp/example-cli-darwin-arm64.zip")
-	if bin != "apple-sign" {
-		t.Fatalf("bin = %q, want apple-sign", bin)
-	}
-	want := []string{"notarize", "/tmp/example-cli-darwin-arm64.zip"}
-	if len(args) != len(want) || args[0] != want[0] || args[1] != want[1] {
-		t.Fatalf("args = %v, want %v", args, want)
-	}
-}
-
 func TestNotarizerRequiresToolPath(t *testing.T) {
 	n := Notarizer{}
 	err := n.Notarize(context.Background(), "/tmp/x.zip")

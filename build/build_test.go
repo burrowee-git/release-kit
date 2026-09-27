@@ -16,7 +16,15 @@ import (
 
 func isolateGoConfig(t *testing.T) {
 	t.Helper()
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	dir := t.TempDir()
+	telemetry := filepath.Join(dir, "go", "telemetry")
+	if err := os.MkdirAll(telemetry, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(telemetry, "mode"), []byte("off"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("XDG_CONFIG_HOME", dir)
 }
 
 func writeTinyModule(t *testing.T, mainSrc string) string {

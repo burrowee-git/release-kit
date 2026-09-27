@@ -3,9 +3,7 @@ package sign
 import (
 	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -111,24 +109,31 @@ func TestAppleSignerInvokes(t *testing.T) {
 	}
 }
 
-func TestAdHocSignerRunsOnDarwin(t *testing.T) {
-	if runtime.GOOS != "darwin" {
-		t.Skip("ad-hoc codesign is darwin-only")
+func TestAdHocSignerInvokesCodesign(t *testing.T) {
+	abs, err := filepath.Abs("-x")
+	if err != nil {
+		t.Fatal(err)
 	}
-	dir := t.TempDir()
-	src := filepath.Join(dir, "main.go")
-	os.WriteFile(src, []byte("package main\nfunc main(){}\n"), 0o644)
-	os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module tiny\ngo 1.25.0\n"), 0o644)
-	binp := filepath.Join(dir, "tiny")
-	build := exec.Command("go", "build", "-o", binp, ".")
-	build.Dir = dir
-	if out, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("build: %v\n%s", err, out)
-	}
-	if err := (AdHocSigner{}).Sign(context.Background(), binp); err != nil {
+	argsFile := filepath.Join(t.TempDir(), "args")
+	installArgsStubAs(t, "codesign", argsFile)
+	if err := (AdHocSigner{}).Sign(context.Background(), "-x"); err != nil {
 		t.Fatalf("Sign: %v", err)
 	}
-	if out, err := exec.Command("codesign", "-v", binp).CombinedOutput(); err != nil {
-		t.Fatalf("codesign -v failed: %v\n%s", err, out)
+	want := []string{"--sign", "-", "--force", abs}
+	if got := readArgLines(t, argsFile); !slices.Equal(got, want) {
+		t.Errorf("codesign argv = %q, want %q", got, want)
+	}
+}
+
+func TestAdHocSignerFailureCarriesOutput(t *testing.T) {
+	dir := t.TempDir()
+	body := "#!/bin/sh\necho 'stub codesign failure'\nexit 1\n"
+	if err := os.WriteFile(filepath.Join(dir, "codesign"), []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	err := (AdHocSigner{}).Sign(context.Background(), "bin")
+	if err == nil || !strings.Contains(err.Error(), "stub codesign failure") {
+		t.Errorf("Sign error = %v, want it to carry the tool's output", err)
 	}
 }

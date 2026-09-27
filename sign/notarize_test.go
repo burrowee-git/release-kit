@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -46,11 +47,12 @@ func TestNotarizeAbsolutizesPath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
-	if len(lines) != 2 {
-		t.Fatalf("stub saw args %v, want [notarize <path>]", lines)
+	abs, err := filepath.Abs("-x")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if strings.HasPrefix(lines[1], "-") || !filepath.IsAbs(lines[1]) {
-		t.Errorf("path arg %q not absolutized", lines[1])
+	want := []string{"notarize", abs}
+	if got := strings.Split(strings.TrimSpace(string(data)), "\n"); !slices.Equal(got, want) {
+		t.Errorf("notarize argv = %q, want %q", got, want)
 	}
 }

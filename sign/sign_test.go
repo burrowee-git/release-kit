@@ -36,8 +36,8 @@ func TestAppleSignerSignError(t *testing.T) {
 	if err == nil {
 		t.Fatal("Sign: want error on non-zero exit, got nil")
 	}
-	if !strings.Contains(err.Error(), "apple sign:") {
-		t.Errorf("Sign error = %q, want wrapped with %q", err.Error(), "apple sign:")
+	if !strings.Contains(err.Error(), "stub sign output") {
+		t.Errorf("Sign error = %q, want it to carry the tool's output %q", err.Error(), "stub sign output")
 	}
 }
 

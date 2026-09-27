@@ -60,42 +60,7 @@ func TestZipFlatWithExecBit(t *testing.T) {
 	}
 }
 
-func TestZipRejectsPathTraversalName(t *testing.T) {
-	dir := t.TempDir()
-	txt := filepath.Join(dir, "notes.txt")
-	if err := os.WriteFile(txt, []byte("hi"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	out := filepath.Join(dir, "out.zip")
-
-	err := Zip(Spec{Out: out, Contents: []Content{
-		{Src: txt, Name: "../evil"},
-	}})
-	if err == nil {
-		t.Fatal("expected error for path-traversal name, got nil")
-	}
-	if !strings.Contains(err.Error(), "..") {
-		t.Errorf("error %q does not mention the offending name", err)
-	}
-}
-
-func TestZipRejectsAbsoluteName(t *testing.T) {
-	dir := t.TempDir()
-	txt := filepath.Join(dir, "notes.txt")
-	if err := os.WriteFile(txt, []byte("hi"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	out := filepath.Join(dir, "out.zip")
-
-	err := Zip(Spec{Out: out, Contents: []Content{
-		{Src: txt, Name: "/etc/evil"},
-	}})
-	if err == nil {
-		t.Fatal("expected error for absolute name, got nil")
-	}
-}
-
-func TestZipRejectsDuplicateNames(t *testing.T) {
+func TestZipRejectsUnsafeNames(t *testing.T) {
 	dir := t.TempDir()
 	a := filepath.Join(dir, "a.txt")
 	b := filepath.Join(dir, "b.txt")
@@ -105,17 +70,25 @@ func TestZipRejectsDuplicateNames(t *testing.T) {
 	if err := os.WriteFile(b, []byte("two"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	out := filepath.Join(dir, "out.zip")
-
-	err := Zip(Spec{Out: out, Contents: []Content{
-		{Src: a, Name: "same.txt"},
-		{Src: b, Name: "same.txt"},
-	}})
-	if err == nil {
-		t.Fatal("expected error for duplicate in-archive name, got nil")
+	cases := []struct {
+		name     string
+		contents []Content
+		says     string
+	}{
+		{name: "traversal", contents: []Content{{Src: a, Name: "../evil"}}, says: ".."},
+		{name: "absolute", contents: []Content{{Src: a, Name: "/etc/evil"}}},
+		{name: "duplicate", contents: []Content{{Src: a, Name: "same.txt"}, {Src: b, Name: "same.txt"}}, says: "same.txt"},
 	}
-	if !strings.Contains(err.Error(), "same.txt") {
-		t.Errorf("error %q does not mention the colliding name", err)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := Zip(Spec{Out: filepath.Join(t.TempDir(), "out.zip"), Contents: tc.contents})
+			if err == nil {
+				t.Fatalf("Zip accepted an unsafe name, want an error")
+			}
+			if !strings.Contains(err.Error(), tc.says) {
+				t.Errorf("error %q does not mention %q", err, tc.says)
+			}
+		})
 	}
 }
 

@@ -101,3 +101,45 @@ func TestStampGitErrorIncludesStderr(t *testing.T) {
 		t.Errorf("error %q missing git stderr diagnostic", err.Error())
 	}
 }
+
+func TestBumpRejects(t *testing.T) {
+	cases := []struct {
+		name string
+		cur  string
+		kind BumpKind
+	}{
+		{name: "minor_overflow", cur: "0.99999999999999999999.0", kind: BumpPatch},
+		{name: "patch_overflow", cur: "0.0.99999999999999999999", kind: BumpPatch},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got, err := Bump(tc.cur, tc.kind); err == nil {
+				t.Errorf("Bump(%q, %v) = %q, nil; want an error", tc.cur, tc.kind, got)
+			}
+		})
+	}
+}
+
+func TestStampRejects(t *testing.T) {
+	dir := t.TempDir()
+	notSemver := filepath.Join(dir, "ver")
+	if err := os.WriteFile(notSemver, []byte("1.2\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cases := []struct {
+		name       string
+		semverFile string
+		says       string
+	}{
+		{name: "missing_file", semverFile: filepath.Join(dir, "absent"), says: "version: read"},
+		{name: "not_semver", semverFile: notSemver, says: "not MAJOR.MINOR.PATCH"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := Stamp(context.Background(), tc.semverFile, dir, DateVersionScheme)
+			if err == nil || !strings.Contains(err.Error(), tc.says) {
+				t.Errorf("Stamp error = %v, want one containing %q", err, tc.says)
+			}
+		})
+	}
+}

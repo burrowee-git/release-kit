@@ -24,8 +24,8 @@ func TestNotarizerCommand(t *testing.T) {
 func TestNotarizerRequiresToolPath(t *testing.T) {
 	n := Notarizer{}
 	err := n.Notarize(context.Background(), "/tmp/x.zip")
-	if err == nil {
-		t.Fatal("expected error for empty ToolPath")
+	if err == nil || !strings.Contains(err.Error(), "ToolPath is required") {
+		t.Fatalf("Notarize error = %v, want the ToolPath usage error", err)
 	}
 }
 

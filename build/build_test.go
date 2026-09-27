@@ -14,6 +14,11 @@ import (
 	"github.com/burrowee-git/release-kit/sign"
 )
 
+func isolateGoConfig(t *testing.T) {
+	t.Helper()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+}
+
 func writeTinyModule(t *testing.T, mainSrc string) string {
 	t.Helper()
 	src := t.TempDir()
@@ -28,6 +33,7 @@ func writeTinyModule(t *testing.T, mainSrc string) string {
 
 func TestCompileHostBinaryWithLdflags(t *testing.T) {
 	src := writeTinyModule(t, "package main\nimport \"fmt\"\nvar version = \"dev\"\nfunc main(){ fmt.Print(version) }\n")
+	isolateGoConfig(t)
 	out := t.TempDir()
 
 	arts, err := Compile(context.Background(), Spec{
@@ -69,6 +75,7 @@ func (r refusingSigner) Sign(ctx context.Context, binaryPath string) error {
 
 func TestCompileForeignOSNotSigned(t *testing.T) {
 	src := writeTinyModule(t, "package main\nfunc main(){}\n")
+	isolateGoConfig(t)
 	out := t.TempDir()
 
 	foreignOS := "linux"
@@ -95,6 +102,7 @@ func TestCompileForeignOSNotSigned(t *testing.T) {
 
 func TestCompileRelativeOutDirResolvesToOneBase(t *testing.T) {
 	src := writeTinyModule(t, "package main\nfunc main(){}\n")
+	isolateGoConfig(t)
 	work := t.TempDir()
 	t.Chdir(work)
 

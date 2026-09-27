@@ -75,9 +75,9 @@ func TestZipRejectsUnsafeNames(t *testing.T) {
 		contents []Content
 		says     string
 	}{
-		{name: "traversal", contents: []Content{{Src: a, Name: "../evil"}}, says: ".."},
-		{name: "absolute", contents: []Content{{Src: a, Name: "/etc/evil"}}},
-		{name: "duplicate", contents: []Content{{Src: a, Name: "same.txt"}, {Src: b, Name: "same.txt"}}, says: "same.txt"},
+		{name: "traversal", contents: []Content{{Src: a, Name: "../evil"}}, says: `contains ".."`},
+		{name: "absolute", contents: []Content{{Src: a, Name: "/etc/evil"}}, says: "absolute in-archive name"},
+		{name: "duplicate", contents: []Content{{Src: a, Name: "same.txt"}, {Src: b, Name: "same.txt"}}, says: `duplicate in-archive name "same.txt"`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -96,7 +96,7 @@ func TestBumpRejects(t *testing.T) {
 		cur  string
 		kind BumpKind
 	}{
-		{name: "not_semver", cur: "notsemver", kind: BumpPatch},
+		{name: "not_semver", cur: "+1.2.3", kind: BumpPatch},
 		{name: "major_overflow", cur: "99999999999999999999.0.0", kind: BumpPatch},
 		{name: "minor_overflow", cur: "0.99999999999999999999.0", kind: BumpPatch},
 		{name: "patch_overflow", cur: "0.0.99999999999999999999", kind: BumpPatch},

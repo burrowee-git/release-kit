@@ -168,3 +168,64 @@ func TestGateScansInExitCodeModeWithWorkspaceOff(t *testing.T) {
 		t.Errorf("scan invocation = %q, want %q", got, want)
 	}
 }
+
+func versionStub(versionLine string, versionExit int) string {
+	return "#!/bin/sh\n" +
+		"if [ \"$1\" = \"-version\" ]; then\n" +
+		"  echo \"" + versionLine + "\"\n" +
+		"  exit " + strconv.Itoa(versionExit) + "\n" +
+		"fi\n" +
+		"echo \"scan output\"\n" +
+		"exit 0\n"
+}
+
+func TestGateVersionFloor(t *testing.T) {
+	cases := []struct {
+		name        string
+		versionLine string
+		versionExit int
+		wantErr     bool
+	}{
+		{name: "unparseable", versionLine: "not a version string", versionExit: 0, wantErr: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			gv := writeNamedStub(t, t.TempDir(), "govulncheck-stub", versionStub(tc.versionLine, tc.versionExit))
+			mods := []Module{{Name: "cli", Dir: t.TempDir()}}
+			err := Gate(context.Background(), mods, GateOpts{GovulncheckPath: gv, ReportDir: t.TempDir()})
+			if (err != nil) != tc.wantErr {
+				t.Errorf("Gate error = %v, want error: %v", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestResolveGovulncheck(t *testing.T) {
+	cases := []struct {
+		name  string
+		setup func(t *testing.T) GateOpts
+	}{
+		{
+			name: "gopath_bin",
+			setup: func(t *testing.T) GateOpts {
+				gopath := t.TempDir()
+				if err := os.Mkdir(filepath.Join(gopath, "bin"), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				writeNamedStub(t, filepath.Join(gopath, "bin"), "govulncheck", stubScript(0))
+				goBin := writeNamedStub(t, t.TempDir(), "go-stub", "#!/bin/sh\necho \""+gopath+"\"\n")
+				return GateOpts{GoBin: goBin}
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("PATH", t.TempDir())
+			opts := tc.setup(t)
+			opts.ReportDir = t.TempDir()
+			if err := Gate(context.Background(), []Module{{Name: "cli", Dir: t.TempDir()}}, opts); err != nil {
+				t.Errorf("Gate: %v", err)
+			}
+		})
+	}
+}

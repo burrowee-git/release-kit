@@ -81,6 +81,8 @@ Canonical, shared across all Burrowee repos — read from `burrowee-git/resource
 | Traps that will bite you | [`docs/guidelines/TRAPS.md`](https://github.com/burrowee-git/resources/blob/main/docs/guidelines/TRAPS.md) |
 | New here? | [`docs/onboarding/`](https://github.com/burrowee-git/resources/blob/main/docs/onboarding/README.md) |
 
+Review reports for this repo live in `burrowee-git/resources`, never in this repo: a project feature's review in its `docs/projects/<project>/features/<NN>-<slug>/review.md`, and a review in no project in `reviews/YYYY-MM-DD-<scope>-review.md` — for example the [2026-07-13 public review](https://github.com/burrowee-git/resources/blob/main/reviews/2026-07-13-release-kit-public-review.md).
+
 Operator-only (machine-local, not required to contribute): release signing, deploy,
 and the local repo registry live outside these repos and are not needed to write code
 here.

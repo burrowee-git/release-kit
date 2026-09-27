@@ -30,10 +30,10 @@ func TestNotarizerRequiresToolPath(t *testing.T) {
 }
 
 func TestNotarizerSurfacesToolError(t *testing.T) {
-	n := Notarizer{ToolPath: "/nonexistent/apple-sign-xyz"}
+	n := Notarizer{ToolPath: writeStub(t, 1)}
 	err := n.Notarize(context.Background(), "/tmp/x.zip")
-	if err == nil {
-		t.Fatal("expected error when tool missing")
+	if err == nil || !strings.Contains(err.Error(), "stub sign output") {
+		t.Fatalf("Notarize error = %v, want it to carry the tool's output", err)
 	}
 }
 

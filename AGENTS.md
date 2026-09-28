@@ -23,7 +23,10 @@ Brand-agnostic, secret-free Go primitives for cutting **signed, checksummed, CVE
 See [`DEVELOPMENT.md`](https://github.com/burrowee-git/resources/blob/main/docs/guidelines/DEVELOPMENT.md)
 for the standard this code is written and reviewed against: think before coding,
 simplicity first, surgical changes, verify before declaring done
-(`ci/run-tests.sh` must stay green — 45 tests + 1 example / 9 packages).
+(`ci/run-tests.sh` must stay green — 59 tests + 1 example / 9 packages; the designed
+skips are `TestRunTestsProductEqualsTheRegistryProduct`, which skips wherever `ci-lock` or
+`CODING_ROOT` is absent (the dev box, burrowee-ci), and `TestSignVerifyRoundtrip`, which
+skips where `minisign` is absent).
 
 ## Suite command and pre-land gate
 

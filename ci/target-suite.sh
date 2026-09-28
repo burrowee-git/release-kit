@@ -40,7 +40,9 @@ end_scratch() {
 stop_group() {
 	if [ -n "$group" ]; then
 		kill -TERM -- "-$group" 2>/dev/null || kill -TERM "$group" 2>/dev/null || true
+		group_gone "$group" || true
 	fi
+	end_scratch || echo "target-suite: could not fully remove $scratch" >&2
 	exit 130
 }
 

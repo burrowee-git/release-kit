@@ -65,13 +65,14 @@ GOWORK=off GOOS=linux go vet ./...
 GOWORK=off GOOS=linux go build ./...
 ci/run-tests.sh --json ./...
 ~/.agents/scripts/comment-lint.sh --check .
-go test -count=1 -run TestRunTestsProductEqualsTheRegistryProduct ./ci/   # workstation only
+test "$(ci-lock products --path .)" = "$(sed -n 's/^product=//p' ci/run-tests.sh)"   # workstation
 ```
 
-The last line is the one Go run allowed on the workstation: a single registry-lookup test
-that checks the runner's `product=` constant against `ci-lock products --path`, which needs
-`ci-lock` and `CODING_ROOT` and so skips on burrowee-ci. It is not suite evidence; the suite
-is `ci/run-tests.sh` on burrowee-ci.
+The last line is the product check, a shell comparison on the workstation (no `go test`
+runs there): the runner's `product=` constant must equal what `ci-lock products --path`
+returns from the registry. `TestRunTestsProductEqualsTheRegistryProduct` makes the same
+check in the suite and stays there, but it skips wherever `ci-lock` or `CODING_ROOT` is
+absent, which is the dev box and burrowee-ci. The suite is `ci/run-tests.sh` on burrowee-ci.
 
 `comment-lint --check` must exit 0: source carries no comments except the
 directives Go tooling parses (hard rule 10).

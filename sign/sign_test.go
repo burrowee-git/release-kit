@@ -3,29 +3,12 @@ package sign
 import (
 	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
 )
-
-func TestAppleSignerCommand(t *testing.T) {
-	// plain codesign mode (no wrapper)
-	bin, args := AppleSigner{Identity: "Developer ID Application: X (TEAM)"}.command("/tmp/b")
-	got := bin + " " + strings.Join(args, " ")
-	want := "codesign --sign Developer ID Application: X (TEAM) --force --options runtime --timestamp /tmp/b"
-	if got != want {
-		t.Errorf("plain:\n got=%q\nwant=%q", got, want)
-	}
-	// wrapper mode
-	bin, args = AppleSigner{Identity: "ignored", ToolPath: "signtool"}.command("/tmp/b")
-	got = bin + " " + strings.Join(args, " ")
-	if got != "signtool sign /tmp/b" {
-		t.Errorf("wrapper: got=%q", got)
-	}
-}
 
 func writeStub(t *testing.T, exit int) string {
 	t.Helper()
@@ -51,61 +34,109 @@ func TestAppleSignerSignError(t *testing.T) {
 	if err == nil {
 		t.Fatal("Sign: want error on non-zero exit, got nil")
 	}
-	if !strings.Contains(err.Error(), "apple sign:") {
+	if !strings.HasPrefix(err.Error(), "apple sign:") {
 		t.Errorf("Sign error = %q, want wrapped with %q", err.Error(), "apple sign:")
+	}
+	if !strings.Contains(err.Error(), "stub sign output") {
+		t.Errorf("Sign error = %q, want it to carry the tool's output %q", err.Error(), "stub sign output")
 	}
 }
 
-// writeArgsStub writes an executable that records the args it receives, one per
-// line, to argsFile. Shared by the sign + notarize absolutization tests.
+func argsStubBody(argsFile string) string {
+	return "#!/bin/sh\n: > \"" + argsFile + "\"\nfor a in \"$@\"; do printf '%s\\n' \"$a\" >> \"" + argsFile + "\"; done\n"
+}
+
 func writeArgsStub(t *testing.T, argsFile string) string {
 	t.Helper()
 	p := filepath.Join(t.TempDir(), "args-stub")
-	body := "#!/bin/sh\n: > \"" + argsFile + "\"\nfor a in \"$@\"; do printf '%s\\n' \"$a\" >> \"" + argsFile + "\"; done\n"
-	if err := os.WriteFile(p, []byte(body), 0o755); err != nil {
+	if err := os.WriteFile(p, []byte(argsStubBody(argsFile)), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	return p
 }
 
-func TestAppleSignerAbsolutizesPath(t *testing.T) {
-	argsFile := filepath.Join(t.TempDir(), "args")
-	s := AppleSigner{ToolPath: writeArgsStub(t, argsFile)}
-	// A path beginning with "-" must not reach the tool as a bare flag-shaped arg.
-	if err := s.Sign(context.Background(), "-x"); err != nil {
-		t.Fatalf("Sign: %v", err)
+func installArgsStubAs(t *testing.T, name, argsFile string) {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(argsStubBody(argsFile)), 0o755); err != nil {
+		t.Fatal(err)
 	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
+func readArgLines(t *testing.T, argsFile string) []string {
+	t.Helper()
 	data, err := os.ReadFile(argsFile)
 	if err != nil {
 		t.Fatal(err)
 	}
-	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
-	if len(lines) != 2 { // "sign", <path>
-		t.Fatalf("stub saw args %v, want [sign <path>]", lines)
+	return strings.Split(strings.TrimSpace(string(data)), "\n")
+}
+
+func TestAppleSignerInvokes(t *testing.T) {
+	abs, err := filepath.Abs("-x")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if strings.HasPrefix(lines[1], "-") || !filepath.IsAbs(lines[1]) {
-		t.Errorf("path arg %q not absolutized", lines[1])
+	cases := []struct {
+		name   string
+		signer func(t *testing.T, argsFile string) AppleSigner
+		want   []string
+	}{
+		{
+			name: "plain",
+			signer: func(t *testing.T, argsFile string) AppleSigner {
+				installArgsStubAs(t, "codesign", argsFile)
+				return AppleSigner{Identity: "Developer ID Application: X (TEAM)"}
+			},
+			want: []string{"--sign", "Developer ID Application: X (TEAM)", "--force", "--options", "runtime", "--timestamp", abs},
+		},
+		{
+			name: "wrapper",
+			signer: func(t *testing.T, argsFile string) AppleSigner {
+				return AppleSigner{Identity: "ignored", ToolPath: writeArgsStub(t, argsFile)}
+			},
+			want: []string{"sign", abs},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			argsFile := filepath.Join(t.TempDir(), "args")
+			if err := tc.signer(t, argsFile).Sign(context.Background(), "-x"); err != nil {
+				t.Fatalf("Sign: %v", err)
+			}
+			if got := readArgLines(t, argsFile); !slices.Equal(got, tc.want) {
+				t.Errorf("signer argv = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }
 
-func TestAdHocSignerRunsOnDarwin(t *testing.T) {
-	if runtime.GOOS != "darwin" {
-		t.Skip("ad-hoc codesign is darwin-only")
+func TestAdHocSignerInvokesCodesign(t *testing.T) {
+	abs, err := filepath.Abs("-x")
+	if err != nil {
+		t.Fatal(err)
 	}
-	dir := t.TempDir()
-	src := filepath.Join(dir, "main.go")
-	os.WriteFile(src, []byte("package main\nfunc main(){}\n"), 0o644)
-	os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module tiny\ngo 1.25.0\n"), 0o644)
-	binp := filepath.Join(dir, "tiny")
-	build := exec.Command("go", "build", "-o", binp, ".")
-	build.Dir = dir
-	if out, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("build: %v\n%s", err, out)
-	}
-	if err := (AdHocSigner{}).Sign(context.Background(), binp); err != nil {
+	argsFile := filepath.Join(t.TempDir(), "args")
+	installArgsStubAs(t, "codesign", argsFile)
+	if err := (AdHocSigner{}).Sign(context.Background(), "-x"); err != nil {
 		t.Fatalf("Sign: %v", err)
 	}
-	if out, err := exec.Command("codesign", "-v", binp).CombinedOutput(); err != nil {
-		t.Fatalf("codesign -v failed: %v\n%s", err, out)
+	want := []string{"--sign", "-", "--force", abs}
+	if got := readArgLines(t, argsFile); !slices.Equal(got, want) {
+		t.Errorf("codesign argv = %q, want %q", got, want)
+	}
+}
+
+func TestAdHocSignerFailureCarriesOutput(t *testing.T) {
+	dir := t.TempDir()
+	body := "#!/bin/sh\necho 'stub codesign failure'\nexit 1\n"
+	if err := os.WriteFile(filepath.Join(dir, "codesign"), []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	err := (AdHocSigner{}).Sign(context.Background(), "bin")
+	if err == nil || !strings.Contains(err.Error(), "stub codesign failure") {
+		t.Errorf("Sign error = %v, want it to carry the tool's output", err)
 	}
 }

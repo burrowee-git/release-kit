@@ -22,7 +22,7 @@ func TestZipFlatWithExecBit(t *testing.T) {
 	out := filepath.Join(dir, "out.zip")
 
 	err := Zip(Spec{Out: out, Contents: []Content{
-		{Src: binp}, // basename → "tool"
+		{Src: binp},
 		{Src: txt, Name: "README.txt"},
 	}})
 	if err != nil {
@@ -46,7 +46,6 @@ func TestZipFlatWithExecBit(t *testing.T) {
 	if _, ok := found["README.txt"]; !ok {
 		t.Fatal("missing renamed README.txt entry")
 	}
-	// content check on README.txt
 	rc, err := r.Open("README.txt")
 	if err != nil {
 		t.Fatal(err)
@@ -61,42 +60,7 @@ func TestZipFlatWithExecBit(t *testing.T) {
 	}
 }
 
-func TestZipRejectsPathTraversalName(t *testing.T) {
-	dir := t.TempDir()
-	txt := filepath.Join(dir, "notes.txt")
-	if err := os.WriteFile(txt, []byte("hi"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	out := filepath.Join(dir, "out.zip")
-
-	err := Zip(Spec{Out: out, Contents: []Content{
-		{Src: txt, Name: "../evil"},
-	}})
-	if err == nil {
-		t.Fatal("expected error for path-traversal name, got nil")
-	}
-	if !strings.Contains(err.Error(), "..") {
-		t.Errorf("error %q does not mention the offending name", err)
-	}
-}
-
-func TestZipRejectsAbsoluteName(t *testing.T) {
-	dir := t.TempDir()
-	txt := filepath.Join(dir, "notes.txt")
-	if err := os.WriteFile(txt, []byte("hi"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	out := filepath.Join(dir, "out.zip")
-
-	err := Zip(Spec{Out: out, Contents: []Content{
-		{Src: txt, Name: "/etc/evil"},
-	}})
-	if err == nil {
-		t.Fatal("expected error for absolute name, got nil")
-	}
-}
-
-func TestZipRejectsDuplicateNames(t *testing.T) {
+func TestZipRejectsUnsafeNames(t *testing.T) {
 	dir := t.TempDir()
 	a := filepath.Join(dir, "a.txt")
 	b := filepath.Join(dir, "b.txt")
@@ -106,16 +70,47 @@ func TestZipRejectsDuplicateNames(t *testing.T) {
 	if err := os.WriteFile(b, []byte("two"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	out := filepath.Join(dir, "out.zip")
-
-	err := Zip(Spec{Out: out, Contents: []Content{
-		{Src: a, Name: "same.txt"},
-		{Src: b, Name: "same.txt"},
-	}})
-	if err == nil {
-		t.Fatal("expected error for duplicate in-archive name, got nil")
+	cases := []struct {
+		name     string
+		contents []Content
+		says     string
+	}{
+		{name: "traversal", contents: []Content{{Src: a, Name: "../evil"}}, says: `contains ".."`},
+		{name: "absolute", contents: []Content{{Src: a, Name: "/etc/evil"}}, says: "absolute in-archive name"},
+		{name: "duplicate", contents: []Content{{Src: a, Name: "same.txt"}, {Src: b, Name: "same.txt"}}, says: `duplicate in-archive name "same.txt"`},
 	}
-	if !strings.Contains(err.Error(), "same.txt") {
-		t.Errorf("error %q does not mention the colliding name", err)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := Zip(Spec{Out: filepath.Join(t.TempDir(), "out.zip"), Contents: tc.contents})
+			if err == nil {
+				t.Fatalf("Zip accepted an unsafe name, want an error")
+			}
+			if !strings.Contains(err.Error(), tc.says) {
+				t.Errorf("error %q does not mention %q", err, tc.says)
+			}
+		})
+	}
+}
+
+func TestZipReportsIOErrors(t *testing.T) {
+	dir := t.TempDir()
+	txt := filepath.Join(dir, "notes.txt")
+	if err := os.WriteFile(txt, []byte("hi"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cases := []struct {
+		name string
+		spec Spec
+		says string
+	}{
+		{name: "missing_src", spec: Spec{Out: filepath.Join(dir, "a.zip"), Contents: []Content{{Src: filepath.Join(dir, "absent")}}}, says: "no such file or directory"},
+		{name: "out_not_creatable", spec: Spec{Out: filepath.Join(dir, "no-such-dir", "b.zip"), Contents: []Content{{Src: txt}}}, says: "pack: create"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := Zip(tc.spec); err == nil || !strings.Contains(err.Error(), tc.says) {
+				t.Errorf("Zip error = %v, want one containing %q", err, tc.says)
+			}
+		})
 	}
 }

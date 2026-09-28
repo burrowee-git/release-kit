@@ -1,5 +1,3 @@
-// Package checksum writes SHA256SUMS files in the standard `shasum -a 256`
-// format, using crypto/sha256 (no external tool) for reproducibility.
 package checksum
 
 import (
@@ -12,10 +10,6 @@ import (
 	"strings"
 )
 
-// WriteSums writes one "<hex>  <basename>\n" line per file to out, sorted by
-// basename so the output is reproducible regardless of input order. Input
-// files must have distinct basenames; two files sharing a basename would
-// produce an ambiguous SHA256SUMS and return an error instead.
 func WriteSums(files []string, out string) error {
 	type entry struct {
 		name string

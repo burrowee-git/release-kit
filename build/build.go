@@ -1,6 +1,3 @@
-// Package build cross-compiles Go binaries with pinned-tag discipline (GOWORK
-// controllable per binary) and optional macOS signing. It is product-agnostic:
-// the caller supplies the binary→package list and fully-computed ldflags.
 package build
 
 import (
@@ -14,14 +11,8 @@ import (
 	"github.com/burrowee-git/release-kit/sign"
 )
 
-// Target is one GOOS/GOARCH pair to build for.
 type Target struct{ OS, Arch string }
 
-// BinSpec is one binary to build. SubDir (relative to SrcDir) selects a nested
-// module to build from; GoWork "off" forces module (non-workspace) mode so
-// pinned tags resolve reproducibly. GoWork left empty defaults to "off" —
-// workspace mode is intentionally not the default, since it can silently
-// resolve a different module graph than vulncheck.Gate scanned.
 type BinSpec struct {
 	Name    string
 	Package string
@@ -30,8 +21,6 @@ type BinSpec struct {
 	GoWork  string
 }
 
-// Spec configures a Compile run: source tree, output layout, cross-compile
-// targets, binaries to build, and an optional Signer for darwin outputs.
 type Spec struct {
 	SrcDir  string
 	GoBin   string
@@ -41,18 +30,11 @@ type Spec struct {
 	Signer  sign.Signer
 }
 
-// Artifact is one built binary's location and build metadata.
 type Artifact struct {
 	Bin, OS, Arch, Path string
-	// Signed is true when Compile actually code-signed this binary (a darwin
-	// target built on a darwin host with a non-nil Signer).
-	Signed bool
+	Signed              bool
 }
 
-// Paths returns each Artifact's Path, in order — convenience glue for feeding
-// checksum.WriteSums or any other API that wants a flat file-path list. pack.Zip
-// wants []Content (name + source path), not a bare []string, so it doesn't
-// consume Paths directly.
 func Paths(arts []Artifact) []string {
 	out := make([]string, len(arts))
 	for i, a := range arts {
@@ -61,19 +43,11 @@ func Paths(arts []Artifact) []string {
 	return out
 }
 
-// Compile builds every Bin for every Target into OutDir/<os>-<arch>/<Name>.
-// darwin outputs are signed with Signer when the build host is darwin and Signer
-// is non-nil (macOS refuses to exec an unsigned native binary). When the build
-// host is not darwin, darwin outputs are left unsigned, since codesign is
-// macOS-only.
 func Compile(ctx context.Context, spec Spec) ([]Artifact, error) {
 	goBin := spec.GoBin
 	if goBin == "" {
 		goBin = "go"
 	}
-	// Resolve OutDir to one absolute base up front: MkdirAll runs in the process
-	// cwd while `go build -o` runs with cmd.Dir=buildDir, so a relative OutDir
-	// would otherwise be resolved against two different roots.
 	outBase, err := filepath.Abs(spec.OutDir)
 	if err != nil {
 		return nil, fmt.Errorf("build: resolve OutDir %q: %w", spec.OutDir, err)

@@ -51,7 +51,8 @@ secrets repo; decrypt to a chmod-600 tmpfile at cut time and pass its path to
 
 ## 7. Smoke-test your kit
 
-- `go test ./...` in the library (already green here).
+- The library's suite is `ci/run-tests.sh`, which runs `go test` on the Linux
+  CI target (see `AGENTS.md`); never `go test` on a Darwin workstation.
 - A `--dry-run` cut of one component that runs the gate and produces a signed,
   checksummed zip you can `minisign -V` and `unzip -l`.
 - See `Example_releaseFlow` in `example_test.go` at the repo root for a

@@ -1,5 +1,3 @@
-// Package pack assembles a flat zip archive (like `zip -j`) from caller-supplied
-// files, preserving each file's permission bits.
 package pack
 
 import (
@@ -11,21 +9,16 @@ import (
 	"strings"
 )
 
-// Content is one file to add. Name is its in-archive name (basename of Src if empty).
 type Content struct {
 	Src  string
 	Name string
 }
 
-// Spec describes an archive to build at Out from Contents.
 type Spec struct {
 	Contents []Content
 	Out      string
 }
 
-// Zip writes the archive. Entries are added flat (no directories), with each
-// source file's mode preserved. In-archive names must be non-absolute, free of
-// ".." path elements, and unique across Contents.
 func Zip(spec Spec) (err error) {
 	zf, ferr := os.Create(spec.Out)
 	if ferr != nil {
@@ -82,8 +75,6 @@ func Zip(spec Spec) (err error) {
 	return nil
 }
 
-// validateName rejects in-archive names that are absolute, empty, or contain
-// ".." path elements (zip-slip-on-write hardening).
 func validateName(name string) error {
 	if name == "" {
 		return fmt.Errorf("empty in-archive name")

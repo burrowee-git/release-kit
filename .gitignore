@@ -2,3 +2,4 @@
 *.minisig
 /tmp/
 .superpowers/
+/.ci-out/

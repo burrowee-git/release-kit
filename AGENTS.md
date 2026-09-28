@@ -30,14 +30,32 @@ simplicity first, surgical changes, verify before declaring done
 `ci/run-tests.sh` is the suite command; `ci/run-tests.sh --help` is its reference.
 It bundles the committed ref (default the current branch; uncommitted work is not
 tested), clones it under `$HOME/ci-runs` on burrowee-ci, and runs `go test -count=1`
-there with go1.26.6 from the module cache (`GOWORK=off`, `GOPROXY=off`,
-`TMPDIR=/tmp`, `GOTMPDIR` unset) under `ci-lock run burrowee`. Each run's artifacts
+there with go1.26.6 from the module cache (`GOWORK=off`, `GOPROXY=off`) under
+`ci-lock run burrowee-release-kit` — the product lock, taken exclusively, plus a shared
+hold on the `burrowee` brand lock, so release-kit runs beside the other Burrowee products
+(`product=` in the runner is a constant; `TestRunTestsProductEqualsTheRegistryProduct`
+checks it against `ci-lock products --path` where `ci-lock` and `CODING_ROOT` are present,
+and skips elsewhere). A lock not acquired exits 75; a lock not provisioned on the machine
+(`ci-lock` exit 2: not provisioned, or usage) exits 3 naming `ci-lock install`
+(operator). Each run's artifacts
 land in a new `.ci-out/<short sha>.XXXXXX/` (gitignored; the path is printed), so
 concurrent runs of one sha never share one. On the machine, `go test` runs in its own
 process group, whose id is kept in the run's `pgid` file. An interrupt (Ctrl-C) first
 kills the local ssh. It then sends that group TERM over one ssh and waits up to 10 s
 for the group to exit. Only then does it remove the run's workdir, and `ci-lock`
-releases the lock when its child ends. Never `go test` on a Darwin workstation.
+releases the lock when its child ends. After `go test` returns, pass or fail, the runner
+TERMs the recorded suite group and, if it has not exited within 10 s, KILLs it, so a
+leaked child cannot hold the CI lock. An interrupted run's group gets TERM only.
+`go test`'s scratch (`TMPDIR` and `GOTMPDIR`) is a fresh `mktemp -d /tmp/ci.XXXXXX` per
+run, one scratch per run, shared by every stage, removed after every run, on an interrupt
+once the group is stopped, and on a hangup (a dropped connection) by the runner itself
+once the group is stopped. The template is repo-independent; the repo is named by the
+run's workdir, whose `scratch` file records the path. Its headroom is computed, not
+assumed: the longest `t.TempDir()` under it is 14 + 1 + 64 (name) + 10 (digits) + 5
+(`/001/`) = 94 bytes, leaving 13 bytes for a unix socket name within Linux's 107 usable
+`sun_path` bytes (108 with the NUL). `TestScratchLeavesSocketHeadroomForTheLongestTempDir`
+asserts those 13 bytes and binds the 13-byte `headroom.sock` there, so any longer template
+fails it. Never `go test` on a Darwin workstation.
 `ci-test` compiles for linux here and then execs it.
 
 Pre-land gate:
@@ -47,7 +65,13 @@ GOWORK=off GOOS=linux go vet ./...
 GOWORK=off GOOS=linux go build ./...
 ci/run-tests.sh --json ./...
 ~/.agents/scripts/comment-lint.sh --check .
+go test -count=1 -run TestRunTestsProductEqualsTheRegistryProduct ./ci/   # workstation only
 ```
+
+The last line is the one Go run allowed on the workstation: a single registry-lookup test
+that checks the runner's `product=` constant against `ci-lock products --path`, which needs
+`ci-lock` and `CODING_ROOT` and so skips on burrowee-ci. It is not suite evidence; the suite
+is `ci/run-tests.sh` on burrowee-ci.
 
 `comment-lint --check` must exit 0: source carries no comments except the
 directives Go tooling parses (hard rule 10).
@@ -56,7 +80,7 @@ The test-suite review runs:
 
 ```sh
 ci/run-tests.sh --json --cover ./...        # counts with skips and failed packages (counts.txt), covered set (covered.txt)
-ci/run-tests.sh --json ./... -- -shuffle=on # shuffled; per-package seeds in seeds.txt
+ci/run-tests.sh --json ./... -- -shuffle=on # shuffled; seeds.txt has one `<package> <seed>` line per package
 ci/run-tests.sh --json ./... -- -count=5    # repeated
 ```
 

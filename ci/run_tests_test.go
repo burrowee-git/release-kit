@@ -37,6 +37,9 @@ func TestRunTestsHelpPrintsUsageToStdout(t *testing.T) {
 		if code != 0 || !strings.HasPrefix(stdout, "usage: ci/run-tests.sh") || stderr != "" {
 			t.Fatalf("%s: exit %d, stdout %q, stderr %q; want exit 0 and the usage on stdout only", flag, code, stdout, stderr)
 		}
+		if !strings.Contains(stdout, "/tmp/ci.XXXXXX") || strings.Contains(stdout, "TMPDIR=/tmp") {
+			t.Fatalf("%s: the usage must name the run's /tmp/ci.XXXXXX scratch and not claim TMPDIR=/tmp:\n%s", flag, stdout)
+		}
 	}
 }
 

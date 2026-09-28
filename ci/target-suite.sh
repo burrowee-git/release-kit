@@ -21,6 +21,21 @@ case $work in
 esac
 
 group=
+scratch=
+
+remove_scratch() {
+	case $1 in /tmp/ci.??????) ;; *) return 0 ;; esac
+	case ${1#/tmp/ci.} in *[!A-Za-z0-9]*) return 0 ;; esac
+	chmod -R u+w -- "$1" 2>/dev/null || true
+	rm -rf -- "$1"
+}
+
+end_scratch() {
+	local status=0
+	remove_scratch "$scratch" || status=$?
+	rm -f "$work/scratch"
+	return "$status"
+}
 
 stop_group() {
 	if [ -n "$group" ]; then
@@ -54,17 +69,38 @@ record_counts() {
 		printf 'fail packages %s\n' "$(grep -c . "$work/failed-packages.txt" || true)"
 		sed 's/^/fail package /' "$work/failed-packages.txt"
 	} >"$work/counts.txt"
-	jq -r 'select(.Output != null) | .Output' "$work/test.json" | grep -- '-test.shuffle' | LC_ALL=C sort | uniq -c >"$work/seeds.txt" || true
+	jq -r 'select(.Output != null and (.Output | startswith("-test.shuffle "))) | "\(.Package) \(.Output | ltrimstr("-test.shuffle ") | rtrimstr("\n"))"' \
+		"$work/test.json" | LC_ALL=C sort -u >"$work/seeds.txt" || true
+}
+
+group_gone() {
+	local i=0
+	while [ "$i" -lt 100 ] && kill -0 -- "-$1" 2>/dev/null; do
+		sleep 0.1
+		i=$((i + 1))
+	done
+	! kill -0 -- "-$1" 2>/dev/null
+}
+
+reap_group() {
+	local g=$1
+	case $g in "" | *[!0-9]* | 0* | 1) return 0 ;; esac
+	kill -s TERM -- "-$g" 2>/dev/null || return 0
+	group_gone "$g" && return 0
+	echo "target-suite: process group $g outlived TERM for 10s; sending KILL" >&2
+	kill -s KILL -- "-$g" 2>/dev/null || return 0
+	group_gone "$g" || echo "target-suite: process group $g still alive 10s after KILL" >&2
 }
 
 in_own_group() {
 	local sink=$1 errs=$2
 	shift 2
-	(cd "$work/src" && exec setsid "$@") >"$sink" 2>"$errs" </dev/null &
+	(cd "$work/src" && export TMPDIR="$scratch" GOTMPDIR="$scratch" && exec setsid "$@") >"$sink" 2>"$errs" </dev/null &
 	group=$!
 	echo "$group" >"$work/pgid"
 	local status=0
 	wait "$group" || status=$?
+	reap_group "$(cat "$work/pgid" 2>/dev/null)"
 	rm -f "$work/pgid"
 	group=
 	return "$status"
@@ -99,6 +135,9 @@ if ! grep -q "^go version $toolchain " "$work/go-version.txt"; then
 	echo "target-suite: wanted $toolchain, got: $(cat "$work/go-version.txt")" >&2
 	exit 3
 fi
+scratch=$(mktemp -d /tmp/ci.XXXXXX)
+echo "$scratch" >"$work/scratch"
 go_status=0
 run_go_test "$@" || go_status=$?
 echo "$go_status" >"$work/exit"
+end_scratch || echo "target-suite: could not fully remove $scratch" >&2

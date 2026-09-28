@@ -14,8 +14,8 @@ usage: ci/run-tests.sh [--ref <branch|tag>] [--cover] [--json] [--out <dir>] [<p
 Runs this repo's suite on the Linux target ($host), never on this machine:
 a clone of <ref> (default the current branch) is sent to \$HOME/ci-runs there
 and 'go test -count=1 <package>…' (default ./...) runs with $toolchain from the
-module cache (GOPROXY=off, TMPDIR=/tmp) under 'ci-lock run $brand'. Artifacts
-come back to <out>.
+module cache (GOPROXY=off; TMPDIR and GOTMPDIR a fresh /tmp/ci.XXXXXX for the
+run, removed after it) under 'ci-lock run $brand'. Artifacts come back to <out>.
 
   --ref <branch|tag>  the committed ref to test (default the current branch)
   --cover             add -covermode=set -coverpkg=./... and return cover.out and covered.txt
@@ -95,21 +95,26 @@ remove_remote_work() {
 		echo "run-tests: could not remove $host:$remote_work" >&2
 }
 
-stop_script='f=$1
-[ -f "$f" ] || exit 0
-g=$(cat "$f")
-case $g in "" | *[!0-9]* | 0* | 1) exit 0 ;; esac
-kill -s TERM -- "-$g" 2>/dev/null || kill -s TERM "$g" 2>/dev/null || exit 0
-i=0
-while [ "$i" -lt 100 ] && { kill -0 -- "-$g" 2>/dev/null || kill -0 "$g" 2>/dev/null; }; do
-	sleep 0.1
-	i=$((i + 1))
-done
-[ "$i" -lt 100 ] || echo "run-tests: process group $g still alive after 10s" >&2'
+stop_script='f=$1 s=$2
+g=$(cat "$f" 2>/dev/null)
+case $g in "" | *[!0-9]* | 0* | 1) g= ;; esac
+if [ -n "$g" ] && { kill -s TERM -- "-$g" 2>/dev/null || kill -s TERM "$g" 2>/dev/null; }; then
+	i=0
+	while [ "$i" -lt 100 ] && { kill -0 -- "-$g" 2>/dev/null || kill -0 "$g" 2>/dev/null; }; do
+		sleep 0.1
+		i=$((i + 1))
+	done
+	[ "$i" -lt 100 ] || echo "run-tests: process group $g still alive after 10s" >&2
+fi
+d=$(cat "$s" 2>/dev/null)
+case $d in /tmp/ci.??????) ;; *) exit 0 ;; esac
+case ${d#/tmp/ci.} in *[!A-Za-z0-9]*) exit 0 ;; esac
+chmod -R u+w -- "$d" 2>/dev/null || true
+rm -rf -- "$d"'
 
 stop_remote_suite() {
 	is_run_dir "$remote_work" || return 0
-	printf '%s\n' "$stop_script" | ssh "${ssh_opts[@]}" "$host" "bash -s -- $(printf '%q' "$remote_work/pgid")" ||
+	printf '%s\n' "$stop_script" | ssh "${ssh_opts[@]}" "$host" "bash -s -- $(printf '%q' "$remote_work/pgid") $(printf '%q' "$remote_work/scratch")" ||
 		echo "run-tests: could not stop the suite on $host" >&2
 }
 

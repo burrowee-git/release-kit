@@ -2,9 +2,11 @@ package ci
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -39,6 +41,15 @@ case "$*" in
 esac
 `
 
+const rmShim = `#!/bin/sh
+if [ -n "$FAKE_RM_FAILS" ]; then
+	for a; do
+		case $a in /tmp/ci.*) echo "rm: cannot remove '$a': Operation not permitted" >&2; exit 1 ;; esac
+	done
+fi
+exec REAL_RM "$@"
+`
+
 const goSuiteShim = `#!/bin/sh
 watch_test() {
 	i=0
@@ -50,7 +61,36 @@ watch_test() {
 case "$1" in
 version) echo "go version go1.26.6 linux/arm64" ;;
 test)
+	[ -z "$SCRATCH_SEEN" ] || echo "$TMPDIR" >>"$SCRATCH_SEEN"
+	if [ -n "$FAKE_SCRATCH" ]; then
+		mkdir -p "$TMPDIR/go-build4242/b001" && echo x >"$TMPDIR/go-build4242/b001/pkg.test"
+		echo "tmpdir $TMPDIR gotmpdir $GOTMPDIR" >>"$SHIM_LOG"
+		echo '{"Action":"pass","Package":"example.invalid/scratch","Test":"TestScratch"}'
+		exit 0
+	fi
+	if [ -n "$FAKE_READONLY_SCRATCH" ]; then
+		mkdir "$TMPDIR/ro" && echo x >"$TMPDIR/ro/f" && chmod 0500 "$TMPDIR/ro"
+		echo "tmpdir $TMPDIR gotmpdir $GOTMPDIR" >>"$SHIM_LOG"
+		echo '{"Action":"pass","Package":"example.invalid/readonly","Test":"TestLeavesReadOnly"}'
+		exit 0
+	fi
+	if [ -n "$FAKE_LEAK_EXIT" ]; then
+		(
+			if [ -n "$FAKE_LEAK_IGNORES_TERM" ]; then
+				trap '' TERM
+			else
+				trap 'echo leak-term >>"$SHIM_LOG"; exit 143' TERM
+			fi
+			echo "leak-pid $(sh -c 'echo $PPID')" >>"$SHIM_LOG"
+			watch_test
+		) &
+		echo '{"Action":"pass","Package":"example.invalid/leaky","Test":"TestLeaks"}'
+		exit "$FAKE_LEAK_EXIT"
+	fi
 	if [ -n "$FAKE_TEST_JSON" ]; then
+		for a; do
+			case $a in -coverprofile=*) [ -z "$FAKE_COVER" ] || cp "$FAKE_COVER" "${a#-coverprofile=}" ;; esac
+		done
 		cat "$FAKE_TEST_JSON"
 		exit 1
 	fi
@@ -181,6 +221,7 @@ func TestRunTestsInterruptStopsTheRemoteSuiteBeforeRemovingItsWorkdir(t *testing
 		t.Fatal(err)
 	}
 	startRemoteSuite(t, work, log)
+	scratch := makeRemoteScratch(t, work)
 	cmd := exec.Command("bash", "ci/run-tests.sh")
 	cmd.Dir = repo
 	cmd.Env = append(os.Environ(), "PATH="+shims+":"+os.Getenv("PATH"), "SHIM_LOG="+log, "FAKE_WORK="+work,
@@ -204,25 +245,97 @@ func TestRunTestsInterruptStopsTheRemoteSuiteBeforeRemovingItsWorkdir(t *testing
 		t.Fatalf("exit %d, remote actions %q; want exit 130, the local run killed, then every process in "+
 			"the recorded group stopped, then its workdir removed", code, b)
 	}
+	if _, err := os.Stat(scratch); !os.IsNotExist(err) {
+		t.Fatalf("the interrupted run's scratch %s survived (stat: %v); go test's leftovers would sit in RAM /tmp", scratch, err)
+	}
 }
 
-func targetSuiteCmd(t *testing.T, log string, env ...string) (*exec.Cmd, string) {
+func removeRecordedScratch(work string) {
+	if b, err := os.ReadFile(filepath.Join(work, "scratch")); err == nil {
+		removeRunScratch(strings.TrimSpace(string(b)), work)
+	}
+}
+
+func removeSeenScratch(seen, work string) {
+	b, _ := os.ReadFile(seen)
+	for _, dir := range strings.Fields(string(b)) {
+		removeRunScratch(dir, work)
+	}
+}
+
+var runScratchShape = regexp.MustCompile(`^/tmp/[A-Za-z0-9][A-Za-z0-9_-]*\.[A-Za-z0-9]{6}$`)
+
+func removeRunScratch(dir, ownedLike string) {
+	if !runScratchShape.MatchString(dir) {
+		return
+	}
+	info, err := os.Lstat(dir)
+	if err != nil || !info.IsDir() {
+		return
+	}
+	ref, err := os.Stat(ownedLike)
+	if err != nil {
+		return
+	}
+	got, isStat := info.Sys().(*syscall.Stat_t)
+	want, isRefStat := ref.Sys().(*syscall.Stat_t)
+	if !isStat || !isRefStat || got.Uid != want.Uid {
+		return
+	}
+	_ = filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+		if err == nil && d.IsDir() {
+			_ = os.Chmod(p, 0o700)
+		}
+		return nil
+	})
+	_ = os.RemoveAll(dir)
+}
+
+var runScratch = regexp.MustCompile(`^/tmp/ci\.[A-Za-z0-9]{6}$`)
+
+func makeRemoteScratch(t *testing.T, work string) string {
+	t.Helper()
+	out, err := exec.Command("mktemp", "-d", "/tmp/ci.XXXXXX").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := strings.TrimSpace(string(out))
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	if err := os.MkdirAll(filepath.Join(dir, "go-build4242"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(work, "scratch"), []byte(dir+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+func targetSuiteCmd(t *testing.T, log, cover string, env ...string) (*exec.Cmd, string) {
 	t.Helper()
 	home := t.TempDir()
 	work := filepath.Join(home, "ci-runs", "release-kit.abc123")
 	if err := os.MkdirAll(work, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	shims := writeShims(t, map[string]string{"go": goSuiteShim, "git": gitCloneShim})
-	cmd := exec.Command("bash", "target-suite.sh", work, "0000000", "go1.26.6", "0", "1", "0")
-	cmd.Env = append(os.Environ(), append([]string{"HOME=" + home, "SHIM_LOG=" + log, "TEST_PID=" + strconv.Itoa(os.Getpid()),
+	realRm, err := exec.LookPath("rm")
+	if err != nil {
+		t.Fatal(err)
+	}
+	shims := writeShims(t, map[string]string{"go": goSuiteShim, "git": gitCloneShim, "rm": strings.ReplaceAll(rmShim, "REAL_RM", realRm)})
+	seen := filepath.Join(home, "scratch-seen")
+	t.Cleanup(func() {
+		removeRecordedScratch(work)
+		removeSeenScratch(seen, work)
+	})
+	cmd := exec.Command("bash", "target-suite.sh", work, "0000000", "go1.26.6", cover, "1", "0")
+	cmd.Env = append(os.Environ(), append([]string{"HOME=" + home, "SHIM_LOG=" + log, "SCRATCH_SEEN=" + seen, "TEST_PID=" + strconv.Itoa(os.Getpid()),
 		"PATH=" + shims + ":" + os.Getenv("PATH")}, env...)...)
 	return cmd, work
 }
 
 func TestTargetSuiteRecordsAndHangupKillsTheSuitesWholeProcessGroup(t *testing.T) {
 	log := filepath.Join(t.TempDir(), "shim.log")
-	cmd, work := targetSuiteCmd(t, log)
+	cmd, work := targetSuiteCmd(t, log, "0")
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
@@ -260,6 +373,8 @@ func TestRecordCountsNamesAFailedPackage(t *testing.T) {
 	events := `{"Action":"run","Package":"example.invalid/good","Test":"TestA"}
 {"Action":"pass","Package":"example.invalid/good","Test":"TestA"}
 {"Action":"skip","Package":"example.invalid/good","Test":"TestB"}
+{"Action":"pass","Package":"example.invalid/good","Test":"TestA/ok"}
+{"Action":"skip","Package":"example.invalid/good","Test":"TestA/case"}
 {"Action":"pass","Package":"example.invalid/good"}
 {"Action":"output","Package":"example.invalid/broken","Output":"FAIL\texample.invalid/broken [build failed]\n"}
 {"Action":"fail","Package":"example.invalid/broken"}
@@ -267,7 +382,7 @@ func TestRecordCountsNamesAFailedPackage(t *testing.T) {
 	if err := os.WriteFile(fixture, []byte(events), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	cmd, work := targetSuiteCmd(t, filepath.Join(t.TempDir(), "shim.log"), "FAKE_TEST_JSON="+fixture)
+	cmd, work := targetSuiteCmd(t, filepath.Join(t.TempDir(), "shim.log"), "0", "FAKE_TEST_JSON="+fixture)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("target-suite.sh: %v %s", err, out)
 	}
@@ -278,9 +393,50 @@ func TestRecordCountsNamesAFailedPackage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "pass tests 1 cases 0\nfail tests 0 cases 0\nskip tests 1 cases 0\n" +
-		"skip example.invalid/good TestB\nfail packages 1\nfail package example.invalid/broken\n"
+	want := "pass tests 1 cases 1\nfail tests 0 cases 0\nskip tests 1 cases 1\n" +
+		"skip example.invalid/good TestA/case\nskip example.invalid/good TestB\n" +
+		"fail packages 1\nfail package example.invalid/broken\n"
 	if string(counts) != want {
 		t.Fatalf("counts.txt = %q, want %q", counts, want)
+	}
+}
+
+func TestRecordsTheCoveredSetAndSeeds(t *testing.T) {
+	dir := t.TempDir()
+	cover := filepath.Join(dir, "cover.out")
+	profile := "mode: set\n" +
+		"example.invalid/b/b.go:1.1,2.2 1 1\n" +
+		"example.invalid/a/a.go:1.1,2.2 1 1\n" +
+		"example.invalid/a/a.go:3.1,4.2 1 0\n" +
+		"example.invalid/a_test/x.go:1.1,2.2 1 1\n" +
+		"example.invalid/a/a.go:1.1,2.2 1 1\n"
+	events := `{"Action":"output","Package":"example.invalid/b","Output":"-test.shuffle 7\n"}` + "\n" +
+		`{"Action":"output","Package":"example.invalid/a","Output":"-test.shuffle 42\n"}` + "\n" +
+		`{"Action":"output","Package":"example.invalid/a","Output":"=== RUN   TestA\n"}` + "\n" +
+		`{"Action":"pass","Package":"example.invalid/a","Test":"TestA"}` + "\n" +
+		`{"Action":"pass","Package":"example.invalid/b","Test":"TestB"}` + "\n"
+	fixture := filepath.Join(dir, "test.json")
+	for path, body := range map[string]string{cover: profile, fixture: events} {
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cmd, work := targetSuiteCmd(t, filepath.Join(dir, "shim.log"), "1", "FAKE_TEST_JSON="+fixture, "FAKE_COVER="+cover)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("target-suite.sh: %v %s", err, out)
+	}
+	covered, err := os.ReadFile(filepath.Join(work, "covered.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "example.invalid/a/a.go:1.1,2.2\nexample.invalid/b/b.go:1.1,2.2\n"; string(covered) != want {
+		t.Fatalf("covered.txt = %q, want %q (union, count > 0, _test packages dropped, sorted)", covered, want)
+	}
+	seeds, err := os.ReadFile(filepath.Join(work, "seeds.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "example.invalid/a 42\nexample.invalid/b 7\n"; string(seeds) != want {
+		t.Fatalf("seeds.txt = %q, want %q (one <package> <seed> line per shuffled package, sorted)", seeds, want)
 	}
 }

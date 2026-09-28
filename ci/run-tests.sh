@@ -2,7 +2,7 @@
 set -euo pipefail
 
 toolchain=go1.26.6
-brand=burrowee
+product=burrowee-release-kit
 host=${BURROWEE_CI_HOST:-burrowee-ci}
 ssh_opts=(-o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=8)
 artifacts=(exit go-version.txt test.out test.json test.err cover.out covered.txt results.txt counts.txt failed-packages.txt seeds.txt)
@@ -15,7 +15,9 @@ Runs this repo's suite on the Linux target ($host), never on this machine:
 a clone of <ref> (default the current branch) is sent to \$HOME/ci-runs there
 and 'go test -count=1 <package>…' (default ./...) runs with $toolchain from the
 module cache (GOPROXY=off; TMPDIR and GOTMPDIR a fresh /tmp/ci.XXXXXX for the
-run, removed after it) under 'ci-lock run $brand'. Artifacts come back to <out>.
+run, removed after it) under 'ci-lock run $product': the product lock, beside
+the other burrowee products, with a shared hold on the burrowee brand lock.
+Artifacts come back to <out>.
 
   --ref <branch|tag>  the committed ref to test (default the current branch)
   --cover             add -covermode=set -coverpkg=./... and return cover.out and covered.txt
@@ -27,7 +29,8 @@ run, removed after it) under 'ci-lock run $brand'. Artifacts come back to <out>.
 
 Environment: BURROWEE_CI_HOST (default burrowee-ci); BURROWEE_CI_PROJECT
 (default the ref) and BURROWEE_CI_SESSION, recorded by the lock.
-Exit: the suite's own status; 2 usage; 3 the target could not run it.
+Exit: the suite's own status; 2 usage; 3 the target could not run it (ci-lock
+refusing with 2, not provisioned or usage, names 'ci-lock install'); 75 the lock was not acquired.
 USAGE
 }
 
@@ -79,7 +82,7 @@ is_run_dir() {
 }
 
 remote_command() {
-	local lock_args=(run "$brand" --project "${BURROWEE_CI_PROJECT:-$ref}")
+	local lock_args=(run "$product" --project "${BURROWEE_CI_PROJECT:-$ref}")
 	[ -n "${BURROWEE_CI_SESSION:-}" ] && lock_args+=(--session "$BURROWEE_CI_SESSION")
 	local command=(ci-lock "${lock_args[@]}" -- bash "$remote_work/target-suite.sh" "$remote_work" "$sha" "$toolchain" "$want_cover" "$want_json")
 	command+=("${#packages[@]}" "${packages[@]+"${packages[@]}"}" "${go_flags[@]+"${go_flags[@]}"}")
@@ -160,6 +163,17 @@ run_on_target() {
 	return "$status"
 }
 
+lock_refused() {
+	case $1 in
+	75)
+		echo "run-tests: the $product lock was not acquired on $host (ci-lock exit 75); nothing ran" >&2
+		exit 75
+		;;
+	2) unavailable "ci-lock refused the $product lock on $host (exit 2: not provisioned, or usage); if not provisioned the operator runs 'ci-lock install'; nothing ran" ;;
+	*) unavailable "the run on $host did not finish (exit $1); no suite result" ;;
+	esac
+}
+
 report() {
 	cat "$out/go-version.txt"
 	if [ "$want_json" = 1 ]; then
@@ -195,7 +209,7 @@ trap 'exit 143' TERM
 
 send_clone
 echo "run-tests: $ref $sha on $host ($toolchain), artifacts -> $out"
-run_on_target || unavailable "the run on $host did not finish (exit $?); no suite result"
+run_on_target || lock_refused "$?"
 fetch_artifacts
 report
 exit "$(cat "$out/exit")"

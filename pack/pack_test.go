@@ -36,6 +36,9 @@ func TestZipFlatWithExecBit(t *testing.T) {
 	found := map[string]os.FileMode{}
 	for _, f := range r.File {
 		found[f.Name] = f.Mode()
+		if f.Method != zip.Deflate {
+			t.Errorf("%s method = %d, want Deflate", f.Name, f.Method)
+		}
 	}
 	if _, ok := found["tool"]; !ok {
 		t.Fatal("missing tool entry")
@@ -105,6 +108,8 @@ func TestZipReportsIOErrors(t *testing.T) {
 	}{
 		{name: "missing_src", spec: Spec{Out: filepath.Join(dir, "a.zip"), Contents: []Content{{Src: filepath.Join(dir, "absent")}}}, says: "no such file or directory"},
 		{name: "out_not_creatable", spec: Spec{Out: filepath.Join(dir, "no-such-dir", "b.zip"), Contents: []Content{{Src: txt}}}, says: "pack: create"},
+		{name: "name_too_long", spec: Spec{Out: filepath.Join(dir, "c.zip"), Contents: []Content{{Src: txt, Name: strings.Repeat("n", 65536)}}}, says: "pack: " + txt + ": zip: FileHeader.Name too long"},
+		{name: "src_is_directory", spec: Spec{Out: filepath.Join(dir, "d.zip"), Contents: []Content{{Src: dir, Name: "dir"}}}, says: "pack: " + dir + ": read " + dir + ": is a directory"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -112,5 +117,20 @@ func TestZipReportsIOErrors(t *testing.T) {
 				t.Errorf("Zip error = %v, want one containing %q", err, tc.says)
 			}
 		})
+	}
+}
+
+func TestZipReportsAnUnreadableSource(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root opens a mode-000 file; owner: release-kit maintainers; re-enable: run the suite as a non-root user")
+	}
+	dir := t.TempDir()
+	src := filepath.Join(dir, "locked")
+	if err := os.WriteFile(src, []byte("x"), 0o000); err != nil {
+		t.Fatal(err)
+	}
+	err := Zip(Spec{Out: filepath.Join(dir, "e.zip"), Contents: []Content{{Src: src}}})
+	if want := "pack: " + src + ": open " + src + ": permission denied"; err == nil || err.Error() != want {
+		t.Fatalf("Zip error = %v, want %q", err, want)
 	}
 }

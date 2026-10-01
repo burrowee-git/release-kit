@@ -45,32 +45,39 @@ func Zip(spec Spec) (err error) {
 		}
 		seen[name] = true
 
-		info, statErr := os.Stat(c.Src)
-		if statErr != nil {
-			return fmt.Errorf("pack: %s: %w", c.Src, statErr)
-		}
-		hdr, hdrErr := zip.FileInfoHeader(info)
-		if hdrErr != nil {
-			return fmt.Errorf("pack: %s: %w", c.Src, hdrErr)
-		}
-		hdr.Name = name
-		hdr.Method = zip.Deflate
-		w, createErr := zw.CreateHeader(hdr)
-		if createErr != nil {
-			return fmt.Errorf("pack: %s: %w", c.Src, createErr)
-		}
-		src, openErr := os.Open(c.Src)
-		if openErr != nil {
-			return fmt.Errorf("pack: %s: %w", c.Src, openErr)
-		}
-		_, copyErr := io.Copy(w, src)
-		_ = src.Close()
-		if copyErr != nil {
-			return fmt.Errorf("pack: %s: %w", c.Src, copyErr)
+		if entryErr := writeEntry(zw, c, name); entryErr != nil {
+			return entryErr
 		}
 	}
 	if closeErr := zw.Close(); closeErr != nil {
 		return fmt.Errorf("pack: %s: %w", spec.Out, closeErr)
+	}
+	return nil
+}
+
+func writeEntry(zw *zip.Writer, c Content, name string) error {
+	info, statErr := os.Stat(c.Src)
+	if statErr != nil {
+		return fmt.Errorf("pack: %s: %w", c.Src, statErr)
+	}
+	hdr, hdrErr := zip.FileInfoHeader(info)
+	if hdrErr != nil {
+		return fmt.Errorf("pack: %s: %w", c.Src, hdrErr)
+	}
+	hdr.Name = name
+	hdr.Method = zip.Deflate
+	w, createErr := zw.CreateHeader(hdr)
+	if createErr != nil {
+		return fmt.Errorf("pack: %s: %w", c.Src, createErr)
+	}
+	src, openErr := os.Open(c.Src)
+	if openErr != nil {
+		return fmt.Errorf("pack: %s: %w", c.Src, openErr)
+	}
+	_, copyErr := io.Copy(w, src)
+	_ = src.Close()
+	if copyErr != nil {
+		return fmt.Errorf("pack: %s: %w", c.Src, copyErr)
 	}
 	return nil
 }

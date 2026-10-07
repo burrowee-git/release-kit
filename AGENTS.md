@@ -18,7 +18,7 @@ Brand-agnostic, secret-free Go primitives for cutting **signed, checksummed, CVE
 - **Fail-closed CVE gate.** `vulncheck.Gate` aborts before build on a reachable known CVE, no override.
 - **Public API stability.** This is a published, imported library — treat exported signatures as contract; breaking changes need a version bump and a note in the release.
 
-## Core principles
+## Principles
 
 See [`DEVELOPMENT.md`](https://github.com/burrowee-git/resources/blob/main/docs/guidelines/DEVELOPMENT.md)
 for the standard this code is written and reviewed against: think before coding,

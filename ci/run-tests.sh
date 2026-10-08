@@ -3,7 +3,8 @@ set -euo pipefail
 
 toolchain=go1.26.6
 product=burrowee-release-kit
-host=${BURROWEE_CI_HOST:-burrowee-ci}
+CI_MACHINE=${BURROWEE_CI_HOST:-${CI_MACHINE:-masdetta-ci}}
+host=$CI_MACHINE
 ssh_opts=(-o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=8)
 artifacts=(exit go-version.txt test.out test.json test.err cover.out covered.txt results.txt counts.txt failed-packages.txt seeds.txt)
 
@@ -27,7 +28,8 @@ Artifacts come back to <out>.
   <package>…          go test package patterns, e.g. ./vulncheck/
   -- <flags>          passed to go test, e.g. -- -shuffle=on -count=5 -run TestX
 
-Environment: BURROWEE_CI_HOST (default burrowee-ci); BURROWEE_CI_PROJECT
+Environment: CI_MACHINE (default masdetta-ci; BURROWEE_CI_HOST overrides it); CI_NO_AUTOSTART
+(set: skip 'ci-watch ensure'); BURROWEE_CI_PROJECT
 (default the ref) and BURROWEE_CI_SESSION, recorded by the lock.
 Exit: the suite's own status; 2 usage; 3 the target could not run it (ci-lock
 refusing with 2, not provisioned or usage, names 'ci-lock install'); 75 the lock was not acquired.
@@ -207,6 +209,12 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
+ensure_machine() {
+	[ -n "${CI_NO_AUTOSTART:-}" ] && return 0
+	ci-watch ensure "$CI_MACHINE" || unavailable "$CI_MACHINE could not be reached; nothing ran"
+}
+
+ensure_machine
 send_clone
 echo "run-tests: $ref $sha on $host ($toolchain), artifacts -> $out"
 run_on_target || lock_refused "$?"

@@ -25,14 +25,14 @@ for the standard this code is written and reviewed against: think before coding,
 simplicity first, surgical changes, verify before declaring done
 (`ci/run-tests.sh` must stay green — 59 tests + 1 example / 9 packages; the designed
 skips are `TestRunTestsProductEqualsTheRegistryProduct`, which skips wherever `ci-lock` or
-`CODING_ROOT` is absent (the dev box, burrowee-ci), and `TestSignVerifyRoundtrip`, which
+`CODING_ROOT` is absent (the dev box, masdetta-ci), and `TestSignVerifyRoundtrip`, which
 skips where `minisign` is absent).
 
 ## Suite command and pre-land gate
 
 `ci/run-tests.sh` is the suite command; `ci/run-tests.sh --help` is its reference.
 It bundles the committed ref (default the current branch; uncommitted work is not
-tested), clones it under `$HOME/ci-runs` on burrowee-ci, and runs `go test -count=1`
+tested), clones it under `$HOME/ci-runs` on masdetta-ci, and runs `go test -count=1`
 there with go1.26.6 from the module cache (`GOWORK=off`, `GOPROXY=off`) under
 `ci-lock run burrowee-release-kit` — the product lock, taken exclusively, plus a shared
 hold on the `burrowee` brand lock, so release-kit runs beside the other Burrowee products
@@ -75,7 +75,7 @@ The last line is the product check, a shell comparison on the workstation (no `g
 runs there): the runner's `product=` constant must equal what `ci-lock products --path`
 returns from the registry. `TestRunTestsProductEqualsTheRegistryProduct` makes the same
 check in the suite and stays there, but it skips wherever `ci-lock` or `CODING_ROOT` is
-absent, which is the dev box and burrowee-ci. The suite is `ci/run-tests.sh` on burrowee-ci.
+absent, which is the dev box and masdetta-ci. The suite is `ci/run-tests.sh` on masdetta-ci.
 
 `comment-lint --check` must exit 0: source carries no comments except the
 directives Go tooling parses (hard rule 10).
@@ -88,7 +88,9 @@ ci/run-tests.sh --json ./... -- -shuffle=on # shuffled; seeds.txt has one `<pack
 ci/run-tests.sh --json ./... -- -count=5    # repeated
 ```
 
-The module cache on burrowee-ci is per account. A run as an account whose cache
+The CI machine is `masdetta-ci`, named in the overlay as `CI_MACHINE`; `BURROWEE_CI_HOST` overrides it. `ci/run-tests.sh` starts the machine with `ci-watch ensure` unless `CI_NO_AUTOSTART` is set.
+
+The module cache on masdetta-ci is per account. A run as an account whose cache
 lacks the go1.26.6 toolchain fails offline: seed it from the workstation, never by
 putting a token on the machine.
 

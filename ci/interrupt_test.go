@@ -117,6 +117,11 @@ esac
 func writeShims(t *testing.T, shims map[string]string) string {
 	t.Helper()
 	dir := t.TempDir()
+	if _, ok := shims["ci-watch"]; !ok {
+		if err := os.WriteFile(filepath.Join(dir, "ci-watch"), []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
 	for name, body := range shims {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o755); err != nil {
 			t.Fatal(err)

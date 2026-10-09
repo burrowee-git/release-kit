@@ -33,7 +33,7 @@ skips where `minisign` is absent).
 `ci/run-tests.sh` is the suite command; `ci/run-tests.sh --help` is its reference.
 It bundles the committed ref (default the current branch; uncommitted work is not
 tested), clones it under `$HOME/ci-runs` on masdetta-ci, and runs `go test -count=1`
-there with go1.26.6 from the module cache (`GOWORK=off`, `GOPROXY=off`) under
+there with go1.26.9 from the module cache (`GOWORK=off`, `GOPROXY=off`) under
 `ci-lock run burrowee-release-kit` — the product lock, taken exclusively, plus a shared
 hold on the `burrowee` brand lock, so release-kit runs beside the other Burrowee products
 (`product=` in the runner is a constant; `TestRunTestsProductEqualsTheRegistryProduct`
@@ -91,7 +91,7 @@ ci/run-tests.sh --json ./... -- -count=5    # repeated
 The CI machine is `masdetta-ci`, named in the overlay as `CI_MACHINE`; `BURROWEE_CI_HOST` overrides it. `ci/run-tests.sh` starts the machine with `ci-watch ensure` unless `CI_NO_AUTOSTART` is set.
 
 The module cache on masdetta-ci is per account. A run as an account whose cache
-lacks the go1.26.6 toolchain fails offline: seed it from the workstation, never by
+lacks the go1.26.9 toolchain fails offline: seed it from the workstation, never by
 putting a token on the machine.
 
 ## Task dispatch

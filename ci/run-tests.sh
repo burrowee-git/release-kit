@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-toolchain=go1.26.6
+toolchain=go1.26.9
 product=burrowee-release-kit
 CI_MACHINE=${BURROWEE_CI_HOST:-${CI_MACHINE:-masdetta-ci}}
 host=$CI_MACHINE

@@ -31,8 +31,8 @@ func runRunnerWithMachineEnv(t *testing.T, ensure string, extra ...string) (log,
 	logPath := filepath.Join(t.TempDir(), "shim.log")
 	cmd := exec.Command("bash", "ci/run-tests.sh")
 	cmd.Dir = repo
-	env := []string{"PATH=" + shims + ":" + os.Getenv("PATH"), "HOME=" + os.Getenv("HOME"), "SHIM_LOG=" + logPath, "FAKE_WORK=/home/ci/ci-runs/release-kit.abc123"}
-	cmd.Env = append(env, extra...)
+	env := []string{"HOME=" + os.Getenv("HOME"), "SHIM_LOG=" + logPath, "FAKE_WORK=/home/ci/ci-runs/release-kit.abc123"}
+	cmd.Env = childEnv(t, []string{"PATH=" + os.Getenv("PATH")}, append(env, extra...), shims)
 	var errBuf strings.Builder
 	cmd.Stderr = &errBuf
 	err := cmd.Run()

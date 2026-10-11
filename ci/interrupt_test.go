@@ -200,7 +200,7 @@ func startRemoteSuite(t *testing.T, work, log string) {
 		t.Fatal(err)
 	}
 	suite := exec.Command("sh", script, strconv.Itoa(os.Getpid()))
-	suite.Env = append(os.Environ(), "SHIM_LOG="+log)
+	suite.Env = childEnv(t, os.Environ(), []string{"SHIM_LOG=" + log})
 	suite.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := suite.Start(); err != nil {
 		t.Fatal(err)

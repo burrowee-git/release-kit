@@ -2,6 +2,7 @@ package ci
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -26,6 +27,16 @@ func buildChildEnv(inherited, extra, dirs []string) ([]string, error) {
 	if slices.Contains(dirs, "") {
 		return nil, errors.New("an empty shim dir would put the current directory on PATH")
 	}
+	if key, dup := duplicateKey(inherited); dup {
+		return nil, fmt.Errorf("inherited env carries %s= more than once", key)
+	}
+	if key, dup := duplicateKey(extra); dup {
+		return nil, fmt.Errorf("caller-supplied env carries %s= more than once", key)
+	}
+	overridden := make(map[string]bool, len(extra))
+	for _, kv := range extra {
+		overridden[envKey(kv)] = true
+	}
 	var env []string
 	path := ""
 	for _, kv := range inherited {
@@ -33,13 +44,32 @@ func buildChildEnv(inherited, extra, dirs []string) ([]string, error) {
 			path = v
 			continue
 		}
-		env = append(env, kv)
+		if !overridden[envKey(kv)] {
+			env = append(env, kv)
+		}
 	}
 	if path == "" {
 		return nil, errors.New("inherited PATH is empty and would put the current directory on PATH")
 	}
 	env = append(env, extra...)
 	return append(env, "PATH="+strings.Join(append(slices.Clone(dirs), path), ":")), nil
+}
+
+func envKey(kv string) string {
+	key, _, _ := strings.Cut(kv, "=")
+	return key
+}
+
+func duplicateKey(env []string) (string, bool) {
+	seen := make(map[string]bool, len(env))
+	for _, kv := range env {
+		key := envKey(kv)
+		if seen[key] {
+			return key, true
+		}
+		seen[key] = true
+	}
+	return "", false
 }
 
 func countPathEntries(env []string) int {
@@ -89,5 +119,28 @@ func TestChildEnvRefusesAnEmptyInheritedPathValue(t *testing.T) {
 func TestChildEnvRefusesAnEmptyDir(t *testing.T) {
 	if _, err := buildChildEnv([]string{"PATH=/usr/bin"}, nil, []string{"/shim", ""}); err == nil {
 		t.Fatal("an empty dir argument was accepted")
+	}
+}
+
+func TestChildEnvRefusesADuplicateKeyInTheInheritedEnv(t *testing.T) {
+	if _, err := buildChildEnv([]string{"PATH=/usr/bin", "HOME=/a", "HOME=/b"}, nil, []string{"/shim"}); err == nil {
+		t.Fatal("an inherited env carrying HOME= twice was accepted")
+	}
+}
+
+func TestChildEnvRefusesADuplicateKeyInTheCallerEnv(t *testing.T) {
+	if _, err := buildChildEnv([]string{"PATH=/usr/bin"}, []string{"HOME=/a", "HOME=/b"}, []string{"/shim"}); err == nil {
+		t.Fatal("a caller env carrying HOME= twice was accepted")
+	}
+}
+
+func TestChildEnvLetsTheCallerOverrideAnInheritedKeyOnce(t *testing.T) {
+	env, err := buildChildEnv([]string{"PATH=/usr/bin", "HOME=/real"}, []string{"HOME=/scratch"}, []string{"/shim"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"HOME=/scratch", "PATH=/shim:/usr/bin"}
+	if !slices.Equal(env, want) {
+		t.Fatalf("env %v; want %v", env, want)
 	}
 }

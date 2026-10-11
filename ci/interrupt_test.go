@@ -444,3 +444,16 @@ func TestRecordsTheCoveredSetAndSeeds(t *testing.T) {
 		t.Fatalf("seeds.txt = %q, want %q (one <package> <seed> line per shuffled package, sorted)", seeds, want)
 	}
 }
+
+func TestTargetSuiteCmdCarriesExactlyOneHOME(t *testing.T) {
+	cmd, _ := targetSuiteCmd(t, filepath.Join(t.TempDir(), "shim.log"), "0")
+	homes := 0
+	for _, kv := range cmd.Env {
+		if strings.HasPrefix(kv, "HOME=") {
+			homes++
+		}
+	}
+	if homes != 1 {
+		t.Fatalf("targetSuiteCmd env carries %d HOME= entries; want exactly 1", homes)
+	}
+}

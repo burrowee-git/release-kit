@@ -99,7 +99,7 @@ func runTwoStages(t *testing.T, work, log string) []stageSeen {
 		"in_own_group \"$work/s1.out\" \"$work/s1.err\" bash -c \"$STAGE\" stage 1\n" +
 		"in_own_group \"$work/s2.out\" \"$work/s2.err\" bash -c \"$STAGE\" stage 2\n"
 	cmd := exec.Command("bash", "-c", script)
-	cmd.Env = append(os.Environ(), "STAGE_LOG="+log, "STAGE="+stageProbe)
+	cmd.Env = childEnv(t, os.Environ(), []string{"STAGE_LOG=" + log, "STAGE=" + stageProbe})
 	out, _ := cmd.CombinedOutput()
 	b, _ := os.ReadFile(log)
 	lines := regexp.MustCompile(`stage (\d) tmpdir (\S*) gotmpdir (\S*) exists (\S+) seen (\S*)\n`).FindAllSubmatch(b, -1)

@@ -59,7 +59,7 @@ watch_test() {
 	done
 }
 case "$1" in
-version) echo "go version go1.26.6 linux/arm64" ;;
+version) echo "go version go1.26.9 linux/arm64" ;;
 test)
 	[ -z "$SCRATCH_SEEN" ] || echo "$TMPDIR" >>"$SCRATCH_SEEN"
 	if [ -n "$FAKE_SCRATCH" ]; then
@@ -229,8 +229,8 @@ func TestRunTestsInterruptStopsTheRemoteSuiteBeforeRemovingItsWorkdir(t *testing
 	scratch := makeRemoteScratch(t, work)
 	cmd := exec.Command("bash", "ci/run-tests.sh")
 	cmd.Dir = repo
-	cmd.Env = append(os.Environ(), "PATH="+shims+":"+os.Getenv("PATH"), "SHIM_LOG="+log, "FAKE_WORK="+work,
-		"TEST_PID="+strconv.Itoa(os.Getpid()))
+	cmd.Env = childEnv(t, os.Environ(), []string{"SHIM_LOG=" + log, "FAKE_WORK=" + work,
+		"TEST_PID=" + strconv.Itoa(os.Getpid())}, shims)
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -332,9 +332,8 @@ func targetSuiteCmd(t *testing.T, log, cover string, env ...string) (*exec.Cmd, 
 		removeRecordedScratch(work)
 		removeSeenScratch(seen, work)
 	})
-	cmd := exec.Command("bash", "target-suite.sh", work, "0000000", "go1.26.6", cover, "1", "0")
-	cmd.Env = append(os.Environ(), append([]string{"HOME=" + home, "SHIM_LOG=" + log, "SCRATCH_SEEN=" + seen, "TEST_PID=" + strconv.Itoa(os.Getpid()),
-		"PATH=" + shims + ":" + os.Getenv("PATH")}, env...)...)
+	cmd := exec.Command("bash", "target-suite.sh", work, "0000000", "go1.26.9", cover, "1", "0")
+	cmd.Env = childEnv(t, os.Environ(), append([]string{"HOME=" + home, "SHIM_LOG=" + log, "SCRATCH_SEEN=" + seen, "TEST_PID=" + strconv.Itoa(os.Getpid())}, env...), shims)
 	return cmd, work
 }
 
@@ -443,5 +442,18 @@ func TestRecordsTheCoveredSetAndSeeds(t *testing.T) {
 	}
 	if want := "example.invalid/a 42\nexample.invalid/b 7\n"; string(seeds) != want {
 		t.Fatalf("seeds.txt = %q, want %q (one <package> <seed> line per shuffled package, sorted)", seeds, want)
+	}
+}
+
+func TestTargetSuiteCmdCarriesExactlyOneHOME(t *testing.T) {
+	cmd, _ := targetSuiteCmd(t, filepath.Join(t.TempDir(), "shim.log"), "0")
+	homes := 0
+	for _, kv := range cmd.Env {
+		if strings.HasPrefix(kv, "HOME=") {
+			homes++
+		}
+	}
+	if homes != 1 {
+		t.Fatalf("targetSuiteCmd env carries %d HOME= entries; want exactly 1", homes)
 	}
 }

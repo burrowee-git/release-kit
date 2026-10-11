@@ -26,8 +26,8 @@ func runUnderLockExit(t *testing.T, lockExit string) (log string, stderr string,
 	log = filepath.Join(t.TempDir(), "shim.log")
 	cmd := exec.Command("bash", "ci/run-tests.sh")
 	cmd.Dir = repo
-	cmd.Env = append(os.Environ(), "PATH="+shims+":"+os.Getenv("PATH"), "SHIM_LOG="+log,
-		"FAKE_WORK=/home/ci/ci-runs/release-kit.abc123", "FAKE_LOCK_EXIT="+lockExit)
+	cmd.Env = childEnv(t, os.Environ(), []string{"SHIM_LOG=" + log,
+		"FAKE_WORK=/home/ci/ci-runs/release-kit.abc123", "FAKE_LOCK_EXIT=" + lockExit}, shims)
 	var errOut bytes.Buffer
 	cmd.Stderr = &errOut
 	if err := cmd.Start(); err != nil {

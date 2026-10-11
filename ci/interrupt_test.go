@@ -59,7 +59,7 @@ watch_test() {
 	done
 }
 case "$1" in
-version) echo "go version go1.26.6 linux/arm64" ;;
+version) echo "go version go1.26.9 linux/arm64" ;;
 test)
 	[ -z "$SCRATCH_SEEN" ] || echo "$TMPDIR" >>"$SCRATCH_SEEN"
 	if [ -n "$FAKE_SCRATCH" ]; then
@@ -229,8 +229,8 @@ func TestRunTestsInterruptStopsTheRemoteSuiteBeforeRemovingItsWorkdir(t *testing
 	scratch := makeRemoteScratch(t, work)
 	cmd := exec.Command("bash", "ci/run-tests.sh")
 	cmd.Dir = repo
-	cmd.Env = append(os.Environ(), "PATH="+shims+":"+os.Getenv("PATH"), "SHIM_LOG="+log, "FAKE_WORK="+work,
-		"TEST_PID="+strconv.Itoa(os.Getpid()))
+	cmd.Env = childEnv(t, os.Environ(), []string{"SHIM_LOG=" + log, "FAKE_WORK=" + work,
+		"TEST_PID=" + strconv.Itoa(os.Getpid())}, shims)
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -332,9 +332,8 @@ func targetSuiteCmd(t *testing.T, log, cover string, env ...string) (*exec.Cmd, 
 		removeRecordedScratch(work)
 		removeSeenScratch(seen, work)
 	})
-	cmd := exec.Command("bash", "target-suite.sh", work, "0000000", "go1.26.6", cover, "1", "0")
-	cmd.Env = append(os.Environ(), append([]string{"HOME=" + home, "SHIM_LOG=" + log, "SCRATCH_SEEN=" + seen, "TEST_PID=" + strconv.Itoa(os.Getpid()),
-		"PATH=" + shims + ":" + os.Getenv("PATH")}, env...)...)
+	cmd := exec.Command("bash", "target-suite.sh", work, "0000000", "go1.26.9", cover, "1", "0")
+	cmd.Env = childEnv(t, os.Environ(), append([]string{"HOME=" + home, "SHIM_LOG=" + log, "SCRATCH_SEEN=" + seen, "TEST_PID=" + strconv.Itoa(os.Getpid())}, env...), shims)
 	return cmd, work
 }
 

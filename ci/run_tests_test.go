@@ -81,7 +81,7 @@ func TestTargetSuiteRefusesAWorkdirOutsideItsRunRoot(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, stderr, code := runBash(t, env, "target-suite.sh", tc.work, "0000000", "go1.26.6", "0", "0", "0")
+			_, stderr, code := runBash(t, env, "target-suite.sh", tc.work, "0000000", "go1.26.9", "0", "0", "0")
 			if code != 3 || !strings.Contains(stderr, "refusing workdir") {
 				t.Fatalf("exit %d, stderr %q; want exit 3 and a refusal before anything runs", code, stderr)
 			}

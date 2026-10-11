@@ -66,7 +66,7 @@ func TestRunTestsRefusesBadArgumentsWithUsage(t *testing.T) {
 
 func TestTargetSuiteRefusesAWorkdirOutsideItsRunRoot(t *testing.T) {
 	home := t.TempDir()
-	env := append(os.Environ(), "HOME="+home)
+	env := childEnv(t, os.Environ(), []string{"HOME=" + home})
 	cases := []struct {
 		name string
 		work string

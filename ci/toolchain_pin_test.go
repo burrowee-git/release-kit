@@ -26,8 +26,8 @@ func TestRunTestsPinsGo12610(t *testing.T) {
 	if m == nil {
 		t.Fatal("run-tests.sh has no toolchain= line")
 	}
-	if got := string(m[1]); got != "go1.26.10" {
-		t.Fatalf("run-tests.sh pins toolchain=%s; want go1.26.10", got)
+	if got := string(m[1]); got != "go1.26.11" {
+		t.Fatalf("run-tests.sh pins toolchain=%s; want go1.26.11", got)
 	}
 }
 
@@ -43,7 +43,7 @@ func TestTargetSuiteRefusesGo1269(t *testing.T) {
 	if !errors.As(err, &exit) {
 		t.Fatalf("target-suite accepted a go1.26.9 toolchain: %v %s", err, stderr.String())
 	}
-	if code := exit.ExitCode(); code != 3 || !strings.Contains(stderr.String(), "target-suite: wanted go1.26.10") {
-		t.Fatalf("exit %d, stderr %q; want exit 3 and 'target-suite: wanted go1.26.10'", code, stderr.String())
+	if code := exit.ExitCode(); code != 3 || !strings.Contains(stderr.String(), "target-suite: wanted go1.26.11") {
+		t.Fatalf("exit %d, stderr %q; want exit 3 and 'target-suite: wanted go1.26.11'", code, stderr.String())
 	}
 }
